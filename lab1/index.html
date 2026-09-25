@@ -1,0 +1,324 @@
+<!-- FILE: index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+    <meta
+        name="description"
+        content="Developer portfolio of Đặng Hoàng Nguyên, a University of Information Technology student."
+    >
+    <title>Đặng Hoàng Nguyên | UIT Student</title>
+
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
+</head>
+
+<body>
+    <a href="#main-content" class="skip-link">
+        Skip to main content
+    </a>
+
+    <header role="banner" class="site-header">
+        <hgroup class="header-content">
+            <p class="eyebrow">University of Information Technology (UIT)</p>
+
+            <h1 id="page-title">Đặng Hoàng Nguyên</h1>
+
+            <p class="tagline">
+                Information Systems student at the University of Information Technology (UIT),
+                focused on web development, data, and accessible frontend engineering.
+            </p>
+        </hgroup>
+
+        <button
+            type="button"
+            id="theme-toggle"
+            class="button button-secondary"
+            aria-pressed="false"
+            aria-label="Switch to dark theme"
+        >
+            Dark mode
+        </button>
+    </header>
+
+    <nav
+        role="navigation"
+        aria-label="Primary"
+        class="site-navigation"
+    >
+        <ul class="nav-list">
+            <li>
+                <a href="#about">About</a>
+            </li>
+            <li>
+                <a href="#projects">Projects</a>
+            </li>
+            <li>
+                <a href="#data">Data States</a>
+            </li>
+        </ul>
+    </nav>
+
+    <main id="main-content" role="main">
+        <section id="about" class="content-section" aria-labelledby="about-heading">
+            <p class="eyebrow">About</p>
+
+            <h2 id="about-heading">About Đặng Hoàng Nguyên</h2>
+
+            <p>
+                I am an Information Systems student at the University of Information Technology (UIT).
+                My interests include web application development, data, and building practical
+                software with accessible and resilient user interfaces.
+            </p>
+        </section>
+
+        <section id="projects" class="content-section" aria-labelledby="projects-heading">
+            <p class="eyebrow">Projects</p>
+
+            <h2 id="projects-heading">Selected work</h2>
+
+            <ul class="project-grid">
+                <li class="project-card">
+                    <article>
+                        <h3>Web Application Lab</h3>
+                        <p>
+                            A responsive web application built with semantic HTML,
+                            accessible interaction, and modern frontend practices.
+                        </p>
+                    </article>
+                </li>
+
+                <li class="project-card">
+                    <article>
+                        <h3>Data Analytics Dashboard</h3>
+                        <p>
+                            A data-focused dashboard for exploring information,
+                            visualizing results, and supporting practical analysis.
+                        </p>
+                    </article>
+                </li>
+
+                <li class="project-card">
+                    <article>
+                        <h3>Accessible UI System</h3>
+                        <p>
+                            A reusable interface foundation using semantic structure,
+                            design tokens, keyboard navigation, and theme persistence.
+                        </p>
+                    </article>
+                </li>
+            </ul>
+        </section>
+
+        <section
+            id="data"
+            class="content-section"
+            aria-labelledby="data-heading"
+        >
+            <p class="eyebrow">Resilient Component</p>
+
+            <h2 id="data-heading">Portfolio data states</h2>
+
+            <p
+                id="state-announcement"
+                class="visually-hidden"
+                aria-live="polite"
+            >
+                Loading portfolio data.
+            </p>
+
+            <section
+                class="state-stack"
+                aria-busy="true"
+                aria-live="polite"
+            >
+                <article
+                    id="loading-state"
+                    class="state-card"
+                    aria-labelledby="loading-heading"
+                >
+                    <p class="eyebrow">Loading</p>
+
+                    <h3 id="loading-heading">Preparing portfolio data</h3>
+
+                    <ul class="skeleton-list" aria-label="Loading placeholders">
+                        <li class="skeleton-item" aria-hidden="true">
+                            <span class="skeleton skeleton-short"></span>
+                            <span class="skeleton skeleton-long"></span>
+                        </li>
+
+                        <li class="skeleton-item" aria-hidden="true">
+                            <span class="skeleton skeleton-medium"></span>
+                            <span class="skeleton skeleton-long"></span>
+                        </li>
+
+                        <li class="skeleton-item" aria-hidden="true">
+                            <span class="skeleton skeleton-short"></span>
+                            <span class="skeleton skeleton-medium"></span>
+                        </li>
+                    </ul>
+                </article>
+
+                <article
+                    id="live-state"
+                    class="state-card"
+                    aria-labelledby="live-heading"
+                    hidden
+                >
+                    <p class="eyebrow">Live Data</p>
+
+                    <h3 id="live-heading">Nguyên's projects loaded successfully</h3>
+
+                    <ul class="metadata-list">
+                        <li class="metadata-badge">3 Projects</li>
+                        <li class="metadata-badge">WCAG 2.2 AA</li>
+                        <li class="metadata-badge">Fast 3G Ready</li>
+                    </ul>
+
+                    <ul class="project-grid project-grid-data">
+                        <li class="project-card">
+                            <article>
+                                <h4>Student Web App</h4>
+                                <p>
+                                    A responsive application for managing and presenting information.
+                                </p>
+                            </article>
+                        </li>
+
+                        <li class="project-card">
+                            <article>
+                                <h4>Data Dashboard</h4>
+                                <p>
+                                    Accessible data presentation with responsive layouts
+                                    and clear visual structure.
+                                </p>
+                            </article>
+                        </li>
+
+                        <li class="project-card">
+                            <article>
+                                <h4>Frontend Components</h4>
+                                <p>
+                                    Reusable semantic components, theme tokens,
+                                    and resilient UI states.
+                                </p>
+                            </article>
+                        </li>
+                    </ul>
+                </article>
+
+                <article
+                    id="empty-state"
+                    class="state-card"
+                    aria-labelledby="empty-heading"
+                    hidden
+                >
+                    <p class="eyebrow">Empty</p>
+
+                    <h3 id="empty-heading">No portfolio data found</h3>
+
+                    <p>
+                        There are currently no items available for this state.
+                    </p>
+
+                    <button
+                        type="button"
+                        class="button button-primary"
+                        data-state-target="loading"
+                    >
+                        Load again
+                    </button>
+                </article>
+
+                <article
+                    id="error-state"
+                    class="state-card"
+                    aria-labelledby="error-heading"
+                    hidden
+                    role="alert"
+                >
+                    <p class="eyebrow">Error</p>
+
+                    <h3 id="error-heading">Unable to load portfolio data</h3>
+
+                    <p>
+                        The data request failed. Retry to return to the loading
+                        state and attempt the request again.
+                    </p>
+
+                    <button
+                        type="button"
+                        id="retry-button"
+                        class="button button-primary"
+                    >
+                        Retry loading
+                    </button>
+                </article>
+            </section>
+        </section>
+
+        <section
+            class="content-section"
+            aria-labelledby="demo-heading"
+        >
+            <p class="eyebrow">State Machine Demo</p>
+
+            <h2 id="demo-heading">Test every component state</h2>
+
+            <ul class="control-list" aria-label="State controls">
+                <li>
+                    <button
+                        type="button"
+                        class="button button-secondary"
+                        data-state-target="loading"
+                    >
+                        Loading
+                    </button>
+                </li>
+
+                <li>
+                    <button
+                        type="button"
+                        class="button button-secondary"
+                        data-state-target="live"
+                    >
+                        Live
+                    </button>
+                </li>
+
+                <li>
+                    <button
+                        type="button"
+                        class="button button-secondary"
+                        data-state-target="empty"
+                    >
+                        Empty
+                    </button>
+                </li>
+
+                <li>
+                    <button
+                        type="button"
+                        class="button button-secondary"
+                        data-state-target="error"
+                    >
+                        Error
+                    </button>
+                </li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>
+            Built with semantic HTML, accessible controls, CSS tokens,
+            and resilient component states by Đặng Hoàng Nguyên, UIT.
+        </p>
+    </footer>
+</body>
+</html>
