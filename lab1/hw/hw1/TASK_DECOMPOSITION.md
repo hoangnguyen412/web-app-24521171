@@ -57,7 +57,7 @@ Build the semantic document structure and establish the accessibility foundation
 - Use meaningful visible labels for interactive form controls where applicable.
 - Prefer semantic HTML over generic containers.
 
-### Contract
+### Contract 
 - No unnecessary generic `<div>` containers.
 - Skip link points to the main content.
 - One primary `<h1>`.
