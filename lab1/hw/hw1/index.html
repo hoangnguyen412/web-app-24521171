@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Content Security Policy (Strict CSP cho M3) -->
+  <meta 
+    http-equiv="Content-Security-Policy" 
+    content="default-src 'self'; style-src 'self'; script-src 'self';"
+  >
+
+  <title>Nguyen Hoang | Information Systems &amp; Data</title>
+  <meta
+    name="description"
+    content="Portfolio of Nguyen Hoang, an Information Systems and data-focused student building practical web and software projects."
+  >
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header class="site-header">
+    <p class="site-kicker">Information Systems · Data · Web Engineering</p>
+
+    <h1>Nguyen Hoang</h1>
+
+    <p class="site-intro">
+      Information Systems student focused on turning ideas into practical,
+      reliable digital products.
+    </p>
+  </header>
+
+  <nav class="site-nav" aria-label="Primary navigation">
+    <ul>
+      <li><a href="#about">About</a></li>
+      <li><a href="#skills">Skills</a></li>
+      <li><a href="#projects">Projects</a></li>
+      <li><a href="#experience">Experience</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </nav>
+
+  <main id="main-content">
+    <section id="about" aria-labelledby="about-heading">
+      <header>
+        <p>01 / About</p>
+        <h2 id="about-heading">Building with purpose, learning by shipping.</h2>
+      </header>
+
+      <p>
+        I am an Information Systems student at the University of Information
+        Technology (UIT), exploring data, software engineering, and modern web
+        development through hands-on projects.
+      </p>
+
+      <p>
+        My approach is simple: break complex problems into smaller systems,
+        build each part carefully, verify the result, and improve it through
+        iteration.
+      </p>
+
+      <aside aria-labelledby="focus-heading">
+        <h3 id="focus-heading">Current focus</h3>
+        <ul>
+          <li>Data and information systems</li>
+          <li>Accessible, responsive web applications</li>
+          <li>Practical Python and JavaScript projects</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section id="skills" aria-labelledby="skills-heading">
+      <header>
+        <p>02 / Skills</p>
+        <h2 id="skills-heading">A foundation built around useful engineering.</h2>
+      </header>
+
+      <ul>
+        <li>
+          <h3>Web</h3>
+          <p>Semantic HTML, modern CSS, responsive layouts, and JavaScript.</p>
+        </li>
+        <li>
+          <h3>Programming</h3>
+          <p>Python fundamentals, problem solving, and small application development.</p>
+        </li>
+        <li>
+          <h3>Data</h3>
+          <p>Data preparation, analysis workflows, and information-driven systems.</p>
+        </li>
+        <li>
+          <h3>Engineering</h3>
+          <p>Git, atomic changes, verification, accessibility, and maintainable structure.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section id="projects" aria-labelledby="projects-heading">
+      <header>
+        <p>03 / Selected Projects</p>
+        <h2 id="projects-heading">Small systems, deliberate execution.</h2>
+      </header>
+
+      <article>
+        <header>
+          <h3>AI-Assisted Web Engineering Lab</h3>
+        </header>
+        <p>
+          A modern portfolio built with semantic HTML, responsive CSS,
+          accessible interaction patterns, and a disciplined Git workflow.
+        </p>
+        <p>
+          <a href="#contact" aria-label="Discuss the AI-Assisted Web Engineering Lab project">
+            Discuss project
+          </a>
+        </p>
+      </article>
+
+      <article>
+        <header>
+          <h3>Python Expense Tracker</h3>
+        </header>
+        <p>
+          A command-line application for recording, reviewing, filtering,
+          totaling, and deleting expenses with persistent JSON data.
+        </p>
+        <p>
+          <a href="#contact" aria-label="Discuss the Python Expense Tracker project">
+            Discuss project
+          </a>
+        </p>
+      </article>
+
+      <article>
+        <header>
+          <h3>Video Learning Data Pipeline</h3>
+        </header>
+        <p>
+          A research-oriented workflow for preparing video-derived data,
+          including transcript processing, OCR cleaning, region-of-interest
+          handling, and evaluation.
+        </p>
+        <p>
+          <a href="#contact" aria-label="Discuss the Video Learning Data Pipeline project">
+            Discuss project
+          </a>
+        </p>
+      </article>
+    </section>
+
+    <section id="experience" aria-labelledby="experience-heading">
+      <header>
+        <p>04 / Experience</p>
+        <h2 id="experience-heading">Learning through real constraints.</h2>
+      </header>
+
+      <article>
+        <header>
+          <h3>University of Information Technology</h3>
+          <p>Information Systems · Data-focused coursework</p>
+        </header>
+
+        <p>
+          Coursework and projects across web application development,
+          statistical analysis, decision support, and e-commerce systems.
+        </p>
+      </article>
+
+      <article>
+        <header>
+          <h3>Project-Based Development</h3>
+          <p>Python · Web · Research tooling</p>
+        </header>
+
+        <p>
+          Building small, verifiable projects to strengthen programming,
+          debugging, API usage, Git, and software engineering fundamentals.
+        </p>
+      </article>
+    </section>
+
+    <section id="contact" aria-labelledby="contact-heading">
+      <header>
+        <p>05 / Contact</p>
+        <h2 id="contact-heading">Have a project worth building?</h2>
+      </header>
+
+      <p>
+        Use the form below to start a conversation. The form uses native HTML
+        controls and labels so it remains understandable without JavaScript.
+      </p>
+
+      <form action="#" method="post">
+        <p>
+          <label for="name">Name</label>
+          <input
+            id="name"
+            name="name"
+            type="text"
+            autocomplete="name"
+            required
+            minlength="2"
+          >
+        </p>
+
+        <p>
+          <label for="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+          >
+        </p>
+
+        <p>
+          <label for="message">Message</label>
+          <textarea
+            id="message"
+            name="message"
+            rows="6"
+            minlength="10"
+            aria-describedby="message-hint"
+            required
+          ></textarea>
+        </p>
+
+        <p id="message-hint">
+          Please include enough detail for a useful response.
+        </p>
+
+        <button type="submit">Send message</button>
+      </form>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; 2026 Nguyen Hoang. Built with semantic HTML.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
