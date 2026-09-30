@@ -3,13 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <!-- Content Security Policy (Strict CSP cho M3) -->
-  <meta 
-    http-equiv="Content-Security-Policy" 
-    content="default-src 'self'; style-src 'self'; script-src 'self';"
-  >
-
   <title>Nguyen Hoang | Information Systems &amp; Data</title>
   <meta
     name="description"
@@ -18,11 +11,14 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- M1 Requirement: Skip Link cho Screen Reader & Bàn phím -->
   <a href="#main-content" class="skip-link">Skip to main content</a>
 
+  <!-- M1 Requirement: Header Landmark -->
   <header class="site-header">
     <p class="site-kicker">Information Systems · Data · Web Engineering</p>
 
+    <!-- M1 Requirement: Duy nhất 1 thẻ <h1> duy nhất trên toàn trang -->
     <h1>Nguyen Hoang</h1>
 
     <p class="site-intro">
@@ -31,6 +27,7 @@
     </p>
   </header>
 
+  <!-- M1 Requirement: Navigation Landmark -->
   <nav class="site-nav" aria-label="Primary navigation">
     <ul>
       <li><a href="#about">About</a></li>
@@ -41,6 +38,7 @@
     </ul>
   </nav>
 
+  <!-- M1 Requirement: Main Content Landmark -->
   <main id="main-content">
     <section id="about" aria-labelledby="about-heading">
       <header>
@@ -193,6 +191,7 @@
 
       <form action="#" method="post">
         <p>
+          <!-- M1 Requirement: Explicit Label cho ô nhập liệu -->
           <label for="name">Name</label>
           <input
             id="name"
@@ -236,10 +235,9 @@
     </section>
   </main>
 
+  <!-- M1 Requirement: Footer Landmark -->
   <footer class="site-footer">
     <p>&copy; 2026 Nguyen Hoang. Built with semantic HTML.</p>
   </footer>
-
-  <script src="app.js"></script>
 </body>
 </html>
