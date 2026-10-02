@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>HW2: Polyphonic Drum Kit Engine</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header>
+        <h1>Polyphonic Drum Kit</h1>
+        <p>Press the keys or click the pads to play.</p>
+    </header>
+
+    <main id="main-content">
+        <section id="drum-machine" aria-label="Drum Pads">
+
+            <!-- Data-Sound Contract -->
+            <button
+                class="drum-pad"
+                data-key="a"
+                data-sound="sounds/clap.wav"
+                aria-label="Play Clap"
+            >
+                <kbd>A</kbd>
+                <span class="sound-label">Clap</span>
+            </button>
+
+            <button
+                class="drum-pad"
+                data-key="s"
+                data-sound="sounds/hihat.wav"
+                aria-label="Play HiHat"
+            >
+                <kbd>S</kbd>
+                <span class="sound-label">HiHat</span>
+            </button>
+
+            <button
+                class="drum-pad"
+                data-key="d"
+                data-sound="sounds/kick.wav"
+                aria-label="Play Kick"
+            >
+                <kbd>D</kbd>
+                <span class="sound-label">Kick</span>
+            </button>
+
+            <button
+                class="drum-pad"
+                data-key="f"
+                data-sound="sounds/openhat.wav"
+                aria-label="Play OpenHat"
+            >
+                <kbd>F</kbd>
+                <span class="sound-label">OpenHat</span>
+            </button>
+
+            <button
+                class="drum-pad"
+                data-key="g"
+                data-sound="sounds/boom.wav"
+                aria-label="Play Boom"
+            >
+                <kbd>G</kbd>
+                <span class="sound-label">Boom</span>
+            </button>
+
+            <button
+                class="drum-pad"
+                data-key="h"
+                data-sound="sounds/ride.wav"
+                aria-label="Play Ride"
+            >
+                <kbd>H</kbd>
+                <span class="sound-label">Ride</span>
+            </button>
+
+            <button
+                class="drum-pad"
+                data-key="j"
+                data-sound="sounds/snare.wav"
+                aria-label="Play Snare"
+            >
+                <kbd>J</kbd>
+                <span class="sound-label">Snare</span>
+            </button>
+
+            <button
+                class="drum-pad"
+                data-key="k"
+                data-sound="sounds/tom.wav"
+                aria-label="Play Tom"
+            >
+                <kbd>K</kbd>
+                <span class="sound-label">Tom</span>
+            </button>
+
+            <button
+                class="drum-pad"
+                data-key="l"
+                data-sound="sounds/tink.wav"
+                aria-label="Play Tink"
+            >
+                <kbd>L</kbd>
+                <span class="sound-label">Tink</span>
+            </button>
+
+        </section>
+    </main>
+
+    <footer>
+        <p>HW2 - Web Application Development 2026</p>
+    </footer>
+
+    <script src="drum-kit.js"></script>
+</body>
+</html>
