@@ -1,29 +1,35 @@
+// Core audio engine
 function playSound(key) {
   const pad = document.querySelector(
     `.drum-pad[data-key="${key.toLowerCase()}"]`
   );
 
-  if (!pad) return;
+  if (!pad) return null;
 
+  // New Audio instance per hit for polyphony
   const audio = new Audio(pad.dataset.sound);
   audio.play();
 
-  pad.classList.add('active');
-  setTimeout(() => {
-    pad.classList.remove('active');
-  }, 100);
+  return pad;
 }
 
-const pads = document.querySelectorAll('.drum-pad');
+// Beat recorder state
+const beatRecorder = [];
 
-pads.forEach((pad) => {
-  pad.addEventListener('click', () => {
-    playSound(pad.dataset.key);
-  });
-});
-
+// Keyboard event handler
 document.addEventListener('keydown', (event) => {
   if (event.repeat) return;
 
-  playSound(event.key);
+  const pad = playSound(event.key);
+  if (!pad) return;
+
+  // Visual feedback
+  pad.classList.add('active');
+  setTimeout(() => pad.classList.remove('active'), 100);
+
+  // FIFO beat recorder
+  beatRecorder.push({
+    key: event.key.toLowerCase(),
+    timestamp: Date.now()
+  });
 });
