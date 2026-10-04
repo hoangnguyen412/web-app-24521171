@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+    <meta
+        http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; media-src 'self'; object-src 'none'; base-uri 'self'"
+    >
+
     <title>HW2: Polyphonic Drum Kit Engine</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -13,7 +18,7 @@
 
     <header>
         <h1>Polyphonic Drum Kit</h1>
-        <p>Press the keys or click the pads to play.</p>
+        <p>Press the keyboard keys to play.</p>
     </header>
 
     <main id="main-content">
