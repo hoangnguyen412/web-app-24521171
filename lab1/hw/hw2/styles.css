@@ -1,0 +1,148 @@
+/* =========================================
+   1. DESIGN TOKENS & AUTOMATED DARK MODE
+   ========================================= */
+
+:root {
+    --bg-primary: #f8fafc;
+    --text-primary: #0f172a;
+    --pad-bg: #ffffff;
+    --pad-border: #cbd5e1;
+    --pad-active: #38bdf8;
+    --pad-shadow: rgba(0, 0, 0, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #0f172a;
+        --text-primary: #f8fafc;
+        --pad-bg: #1e293b;
+        --pad-border: #334155;
+        --pad-active: #38bdf8;
+        --pad-shadow: rgba(0, 0, 0, 0.5);
+    }
+}
+
+
+/* =========================================
+   2. MODERN CSS RESET & TYPOGRAPHY
+   ========================================= */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    color-scheme: light dark;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+}
+
+
+/* =========================================
+   3. ACCESSIBILITY
+   ========================================= */
+
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 1rem;
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    z-index: 100;
+    transition: top 0.2s ease;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.skip-link:focus {
+    top: 1rem;
+}
+
+
+/* =========================================
+   4. LAYOUT: FLEXBOX & GRID
+   ========================================= */
+
+header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+#drum-machine {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 1rem;
+    width: 100%;
+    max-width: 600px;
+}
+
+
+/* =========================================
+   5. DRUM PAD COMPONENT
+   ========================================= */
+
+.drum-pad {
+    background-color: var(--pad-bg);
+    border: 2px solid var(--pad-border);
+    border-radius: 8px;
+    padding: 1.5rem 0.5rem;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+
+    cursor: pointer;
+    color: inherit;
+    appearance: none;
+
+    transition:
+        transform 0.1s ease,
+        border-color 0.1s ease,
+        box-shadow 0.1s ease;
+
+    box-shadow: 0 4px 6px var(--pad-shadow);
+}
+
+.drum-pad kbd {
+    font-size: 2rem;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.drum-pad .sound-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.8;
+}
+
+
+/* =========================================
+   6. INTERACTIVE / ACTIVE STATES
+   ========================================= */
+
+.drum-pad:focus-visible {
+    outline: 2px solid var(--pad-active);
+    outline-offset: 4px;
+}
+
+.drum-pad.active {
+    border-color: var(--pad-active);
+    box-shadow: 0 0 15px var(--pad-active);
+    transform: scale(1.08);
+}
