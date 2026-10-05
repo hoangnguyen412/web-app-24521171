@@ -1,0 +1,231 @@
+/* =========================================
+   1. DESIGN TOKENS & AUTOMATED DARK MODE
+   ========================================= */
+
+:root {
+    --bg-primary: #f8fafc;
+    --text-primary: #0f172a;
+    --text-muted: #475569;
+    --surface-bg: #ffffff;
+    --surface-border: #cbd5e1;
+    --accent: #0284c7;
+    --accent-text: #ffffff;
+    --focus-ring: #0284c7;
+    --shadow: rgba(0, 0, 0, 0.1);
+
+    --radius: 8px;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 2rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-primary: #0f172a;
+        --text-primary: #f8fafc;
+        --text-muted: #94a3b8;
+        --surface-bg: #1e293b;
+        --surface-border: #334155;
+        --accent: #38bdf8;
+        --accent-text: #0f172a;
+        --focus-ring: #38bdf8;
+        --shadow: rgba(0, 0, 0, 0.5);
+    }
+}
+
+
+/* =========================================
+   2. MODERN CSS RESET & TYPOGRAPHY
+   ========================================= */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    color-scheme: light dark;
+}
+
+body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-lg);
+
+    min-height: 100vh;
+    padding: var(--space-lg) var(--space-md);
+}
+
+h1 {
+    font-size: 2rem;
+    line-height: 1.2;
+}
+
+h2 {
+    font-size: 1.25rem;
+    margin-bottom: var(--space-md);
+}
+
+
+/* =========================================
+   3. ACCESSIBILITY
+   ========================================= */
+
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: var(--space-md);
+
+    background: var(--text-primary);
+    color: var(--bg-primary);
+
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+
+    z-index: 100;
+    transition: top 0.2s ease;
+
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.skip-link:focus {
+    top: var(--space-md);
+}
+
+:focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 3px;
+}
+
+
+/* =========================================
+   4. LAYOUT: FLEXBOX & GRID
+   ========================================= */
+
+header {
+    text-align: center;
+}
+
+header p {
+    color: var(--text-muted);
+}
+
+main {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    gap: var(--space-lg);
+    align-items: start;
+
+    width: 100%;
+    max-width: 900px;
+}
+
+main > section {
+    background-color: var(--surface-bg);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 6px var(--shadow);
+    padding: var(--space-lg) var(--space-md);
+}
+
+footer {
+    margin-top: auto;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+
+/* =========================================
+   5. COUNTDOWN COMPONENT
+   ========================================= */
+
+#countdown {
+    color: var(--text-muted);
+    text-align: center;
+}
+
+#countdown span {
+    display: inline-block;
+    min-width: 2ch;
+
+    color: var(--accent);
+    font-size: 2rem;
+    font-weight: bold;
+    font-variant-numeric: tabular-nums;
+}
+
+
+/* =========================================
+   6. FORM COMPONENT
+   ========================================= */
+
+form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+form > p {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+}
+
+label {
+    font-weight: 600;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    background-color: var(--bg-primary);
+    border: 2px solid var(--surface-border);
+    border-radius: var(--radius);
+    padding: 0.625rem 0.75rem;
+}
+
+textarea {
+    resize: vertical;
+}
+
+input:user-invalid,
+textarea:user-invalid {
+    border-color: #dc2626;
+}
+
+button[type="submit"] {
+    font: inherit;
+    font-weight: bold;
+    color: var(--accent-text);
+    background-color: var(--accent);
+    border: 2px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+}
+
+button[type="submit"]:hover {
+    filter: brightness(1.1);
+}
+
+button[type="submit"]:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+#form-status {
+    min-height: 1.6em;
+    font-weight: 600;
+}
