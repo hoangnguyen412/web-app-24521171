@@ -6,7 +6,7 @@
 
     <meta
         http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'"
     >
 
     <title>Tech Talk 2026 - Event Registration</title>
@@ -37,7 +37,9 @@
         <section aria-labelledby="register-heading">
             <h2 id="register-heading">Register Now</h2>
 
-            <form id="register-form" method="post">
+            <!-- method="dialog": outside a <dialog> the browser never navigates,
+                 so a native submit can no longer hit the server (no HTTP 405) -->
+            <form id="register-form" method="dialog">
                 <p>
                     <label for="full-name">Full Name</label>
                     <input
@@ -89,7 +91,7 @@
                     ></textarea>
                 </p>
 
-                <button type="submit" id="submit-btn">Submit</button>
+                <button type="submit" id="submit-btn" aria-disabled="false">Submit</button>
 
                 <p id="form-status" aria-live="polite"></p>
             </form>
