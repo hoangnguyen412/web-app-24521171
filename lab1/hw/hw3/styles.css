@@ -13,6 +13,10 @@
     --focus-ring: #0284c7;
     --shadow: rgba(0, 0, 0, 0.1);
 
+    --disabled-bg: #cbd5e1;
+    --disabled-text: #64748b;
+    --disabled-border: #cbd5e1;
+
     --radius: 8px;
     --space-sm: 0.5rem;
     --space-md: 1rem;
@@ -30,6 +34,10 @@
         --accent-text: #0f172a;
         --focus-ring: #38bdf8;
         --shadow: rgba(0, 0, 0, 0.5);
+
+        --disabled-bg: #334155;
+        --disabled-text: #94a3b8;
+        --disabled-border: #334155;
     }
 }
 
@@ -163,6 +171,12 @@ footer {
     font-variant-numeric: tabular-nums;
 }
 
+#countdown-closed {
+    color: var(--text-muted);
+    font-weight: 600;
+    text-align: center;
+}
+
 
 /* =========================================
    6. FORM COMPONENT
@@ -216,12 +230,15 @@ button[type="submit"] {
     cursor: pointer;
 }
 
-button[type="submit"]:hover {
+button[type="submit"]:hover:not([aria-disabled="true"]) {
     filter: brightness(1.1);
 }
 
-button[type="submit"]:disabled {
-    opacity: 0.6;
+/* aria-disabled keeps the button focusable (no keyboard focus loss) */
+button[type="submit"][aria-disabled="true"] {
+    color: var(--disabled-text);
+    background-color: var(--disabled-bg);
+    border-color: var(--disabled-border);
     cursor: not-allowed;
 }
 
