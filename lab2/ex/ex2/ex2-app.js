@@ -1,10 +1,10 @@
-import { createElement, renderToDOM } from "./mini-react.js";
-import { resetCursor } from "./state-store.js";
-import { configureStateDispatcher, useState } from "./reactive-state.js";
+﻿import { createElement, renderToDOM } from "../core/mini-react.js";
+import { resetCursor } from "../core/state-store.js";
+import { configureStateDispatcher, useState } from "../core/reactive-state.js";
 import {
   attachRootEventDelegation,
   updateActionHandlers,
-} from "./event-delegation.js";
+} from "../core/event-delegation.js";
 
 const root = document.getElementById("app");
 
@@ -48,7 +48,7 @@ function renderApp() {
       createElement(
         "p",
         null,
-        `${activeCount} active · ${completedCount} completed`
+        `${activeCount} active Â· ${completedCount} completed`
       )
     ),
     createElement(
@@ -135,3 +135,4 @@ function renderApp() {
 configureStateDispatcher(renderApp);
 attachRootEventDelegation(root);
 renderApp();
+

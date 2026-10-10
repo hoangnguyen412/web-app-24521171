@@ -1,4 +1,4 @@
-import { createElement, renderToDOM } from "./mini-react.js";
+﻿import { createElement, renderToDOM } from "../core/mini-react.js";
 
 const app = createElement(
   "main",
@@ -33,20 +33,20 @@ if (!root) {
 
 root.replaceChildren(renderToDOM(app));
 
-// Kiểm tra mount.
+// Kiá»ƒm tra mount.
 console.assert(
   root.querySelector("button") !== null,
   "Mount Failed"
 );
 
-// Kiểm tra HTML semantic.
+// Kiá»ƒm tra HTML semantic.
 console.assert(
   root.querySelector("main") !== null &&
     root.querySelector("section") !== null,
   "Semantic HTML check failed"
 );
 
-// Kiểm tra XSS.
+// Kiá»ƒm tra XSS.
 console.assert(
   root.querySelector("p")?.textContent ===
     "Security test: <script>alert(1)</script> should appear as plain text.",

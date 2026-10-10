@@ -1,13 +1,13 @@
-import { createElement, renderToDOM } from "./mini-react.js";
-import { resetCursor } from "./state-store.js";
+﻿import { createElement, renderToDOM } from "../core/mini-react.js";
+import { resetCursor } from "../core/state-store.js";
 import {
   configureStateDispatcher,
   useState,
-} from "./reactive-state.js";
+} from "../core/reactive-state.js";
 import {
   attachRootEventDelegation,
   updateActionHandlers,
-} from "./event-delegation.js";
+} from "../core/event-delegation.js";
 import {
   STATUS,
   transitionViewState,
@@ -59,7 +59,7 @@ function createSkeletonCard() {
 async function loadFeed(setViewState) {
   const requestId = ++latestRequestId;
 
-  // Hủy request cũ để tránh xử lý song song không cần thiết.
+  // Há»§y request cÅ© Ä‘á»ƒ trÃ¡nh xá»­ lÃ½ song song khÃ´ng cáº§n thiáº¿t.
   activeController?.abort();
 
   const controller = new AbortController();
@@ -81,7 +81,7 @@ async function loadFeed(setViewState) {
 
     const items = await response.json();
 
-    // Bỏ qua kết quả nếu đã có request mới hơn.
+    // Bá» qua káº¿t quáº£ náº¿u Ä‘Ã£ cÃ³ request má»›i hÆ¡n.
     if (requestId !== latestRequestId) {
       return;
     }
@@ -98,7 +98,7 @@ async function loadFeed(setViewState) {
       setViewState
     );
   } catch (error) {
-    // Request cũ hoặc request bị hủy không được ghi đè state.
+    // Request cÅ© hoáº·c request bá»‹ há»§y khÃ´ng Ä‘Æ°á»£c ghi Ä‘Ã¨ state.
     if (
       requestId !== latestRequestId ||
       error.name === "AbortError"
@@ -125,7 +125,7 @@ async function loadFeed(setViewState) {
 }
 
 function renderApp() {
-  // Thứ tự useState phải giống nhau ở mỗi lần render.
+  // Thá»© tá»± useState pháº£i giá»‘ng nhau á»Ÿ má»—i láº§n render.
   resetCursor();
 
   const [viewState, setViewState] = useState({
@@ -235,7 +235,7 @@ function renderApp() {
       createElement(
         "p",
         null,
-        "Exercise 3 — Resilient State Machine"
+        "Exercise 3 â€” Resilient State Machine"
       )
     ),
     content
@@ -243,7 +243,7 @@ function renderApp() {
 
   root.replaceChildren(renderToDOM(appVNode));
 
-  // Event handlers được quản lý tập trung tại root.
+  // Event handlers Ä‘Æ°á»£c quáº£n lÃ½ táº­p trung táº¡i root.
   updateActionHandlers({
     "load-feed": () => loadFeed(setViewState),
     "retry-feed": () => loadFeed(setViewState),
