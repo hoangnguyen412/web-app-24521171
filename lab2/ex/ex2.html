@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exercise 2 — Reactive Task Manager</title>
+    <style>
+      :root {
+        font-family: Inter, system-ui, Arial, sans-serif;
+        color: #18212f;
+        background: #f4f6fa;
+      }
+
+      * { box-sizing: border-box; }
+
+      body { margin: 0; padding: 48px 20px; }
+
+      .app-container {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 28px;
+        background: white;
+        border: 1px solid #dce2eb;
+        border-radius: 18px;
+        box-shadow: 0 12px 36px rgb(31 45 61 / 8%);
+      }
+
+      .app-header h1 { margin: 0 0 8px; font-size: 28px; }
+      .app-header p { margin: 0; color: #657184; }
+      .filters { display: flex; gap: 8px; margin: 24px 0 16px; }
+      button { font: inherit; cursor: pointer; }
+      .filter, .task-toggle, .add-task {
+        border: 1px solid #cbd3df;
+        border-radius: 9px;
+        padding: 9px 13px;
+        background: white;
+      }
+      .filter.active { color: white; background: #245bd6; border-color: #245bd6; }
+      .task-list { display: grid; gap: 10px; padding: 0; list-style: none; }
+      .task {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 13px 14px;
+        border: 1px solid #e0e5ed;
+        border-radius: 11px;
+      }
+      .task.completed .task-title { color: #7a8494; text-decoration: line-through; }
+      .task-toggle { white-space: nowrap; }
+      .add-task { width: 100%; margin-top: 12px; color: white; background: #18212f; border-color: #18212f; }
+      .empty-state { padding: 18px 0; color: #657184; text-align: center; }
+
+      @media (max-width: 480px) {
+        body { padding: 20px 12px; }
+        .app-container { padding: 20px 16px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./ex2-app.js"></script>
+  </body>
+</html>
