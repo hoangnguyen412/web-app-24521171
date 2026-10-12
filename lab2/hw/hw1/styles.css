@@ -1,0 +1,191 @@
+
+:root {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #172033;
+  background: #f8fafc;
+
+  --color-text: #172033;
+  --color-muted: #475569;
+  --color-surface: #ffffff;
+  --color-header: #eaf2ff;
+  --color-border: #475569;
+  --color-primary: #005fcc;
+  --color-primary-hover: #004a9f;
+  --color-focus: #005fcc;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--color-text);
+  background: #f8fafc;
+  line-height: 1.5;
+}
+
+main {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.7rem, 4vw, 2.3rem);
+  line-height: 1.25;
+}
+
+main > p {
+  margin: 0 0 28px;
+  color: var(--color-muted);
+}
+
+#data-grid-root {
+  padding: 24px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+/* Visible filter label */
+#data-grid-root > label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+
+#data-grid-root > input[type="search"] {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  min-height: 44px;
+  margin-bottom: 20px;
+  padding: 10px 12px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+}
+
+/* Native semantic table */
+#data-grid-root table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  text-align: left;
+}
+
+#data-grid-root th,
+#data-grid-root td {
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+}
+
+#data-grid-root th {
+  color: var(--color-text);
+  background: var(--color-header);
+  font-weight: 700;
+}
+
+#data-grid-root tbody tr:nth-child(even) {
+  background: #f1f5f9;
+}
+
+#data-grid-root tbody tr:hover {
+  background: #e0ecff;
+}
+
+/* Sort buttons */
+#data-grid-root th button {
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+#data-grid-root th button:hover {
+  background: #d5e5ff;
+}
+
+/* Pagination buttons */
+#data-grid-root nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+#data-grid-root nav p {
+  margin: 0;
+  color: var(--color-text);
+}
+
+#data-grid-root nav button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 16px;
+  color: #ffffff;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+#data-grid-root nav button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+#data-grid-root button:disabled {
+  color: var(--color-muted);
+  background: #e2e8f0;
+  border-color: var(--color-border);
+  cursor: not-allowed;
+}
+
+/* Visible keyboard focus */
+#data-grid-root button:focus-visible,
+#data-grid-root input:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+/* Accessible status text */
+#data-grid-root > p[role="status"] {
+  margin: 18px 0 0;
+  color: var(--color-muted);
+}
+
+/* Small screens */
+@media (max-width: 600px) {
+  main {
+    padding: 20px 12px;
+  }
+
+  #data-grid-root {
+    padding: 12px;
+  }
+
+  #data-grid-root table {
+    font-size: 0.9rem;
+  }
+
+  #data-grid-root th,
+  #data-grid-root td {
+    padding: 10px 8px;
+  }
+}
