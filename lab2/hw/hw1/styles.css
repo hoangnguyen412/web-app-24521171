@@ -189,3 +189,13 @@ main > p {
     padding: 10px 8px;
   }
 }
+/* T-07: Visible keyboard focus for grid cells. */
+#data-grid-root td[role="gridcell"]:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: -3px;
+}
+
+/* Make selected rows visually distinguishable. */
+#data-grid-root tbody tr[aria-selected="true"] td {
+  background-color: #dbeafe;
+}
