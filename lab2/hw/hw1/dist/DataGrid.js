@@ -1,4 +1,4 @@
-// Compare numeric values as numbers and other values as text.
+// Compare numbers numerically and other values as text.
 function compareValues(left, right) {
     if (left == null)
         return right == null ? 0 : 1;
@@ -12,7 +12,7 @@ function compareValues(left, right) {
         sensitivity: "base",
     });
 }
-// Pure function: returns a new array and never mutates the input.
+// Pure function: sort without mutating the original array.
 export function sortData(data, accessorKey, direction) {
     return data
         .map((item, index) => ({ item, index }))
@@ -25,10 +25,24 @@ export function sortData(data, accessorKey, direction) {
     })
         .map(({ item }) => item);
 }
+// Pure function: filter across columns without mutating input data.
+export function filterData(data, columns, query) {
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    if (!normalizedQuery) {
+        return [...data];
+    }
+    return data.filter((item) => columns.some((column) => {
+        const value = item[column.accessorKey];
+        return String(value ?? "")
+            .toLocaleLowerCase()
+            .includes(normalizedQuery);
+    }));
+}
 let gridCounter = 0;
 export class DataGrid {
     constructor(root, props) {
         this.sortState = null;
+        this.filterQuery = "";
         this.root = root;
         this.props = props;
         gridCounter += 1;
@@ -56,6 +70,7 @@ export class DataGrid {
         this.render();
     }
     render() {
+        // Filter control.
         const filterLabel = document.createElement("label");
         filterLabel.htmlFor = `${this.instanceId}-filter`;
         filterLabel.textContent = "Filter rows";
@@ -63,6 +78,26 @@ export class DataGrid {
         filterInput.id = `${this.instanceId}-filter`;
         filterInput.type = "search";
         filterInput.name = "filter";
+        filterInput.value = this.filterQuery;
+        filterInput.addEventListener("input", () => {
+            const cursorPosition = filterInput.selectionStart;
+            this.filterQuery = filterInput.value;
+            this.render();
+            // Restore focus and cursor after rendering.
+            const updatedInput = this.root.querySelector(`#${this.instanceId}-filter`);
+            updatedInput?.focus();
+            if (updatedInput && cursorPosition !== null) {
+                const position = Math.min(cursorPosition, updatedInput.value.length);
+                updatedInput.setSelectionRange(position, position);
+            }
+        });
+        // Filter -> Sort. Pagination will be added in T-06.
+        const query = this.filterQuery.trim().toLocaleLowerCase();
+        const filteredData = filterData(this.props.data, this.props.columns, query);
+        const displayedData = this.sortState
+            ? sortData(filteredData, this.sortState.accessorKey, this.sortState.direction)
+            : filteredData;
+        // Native table with ARIA grid semantics.
         const table = document.createElement("table");
         table.setAttribute("role", "grid");
         table.setAttribute("aria-label", this.props.ariaLabel);
@@ -101,17 +136,17 @@ export class DataGrid {
             headerRow.appendChild(headerCell);
         });
         thead.appendChild(headerRow);
+        // Table body.
         const tbody = document.createElement("tbody");
-        const displayedData = this.sortState
-            ? sortData(this.props.data, this.sortState.accessorKey, this.sortState.direction)
-            : this.props.data;
         if (displayedData.length === 0) {
             const emptyRow = document.createElement("tr");
             emptyRow.setAttribute("role", "row");
             const emptyCell = document.createElement("td");
             emptyCell.setAttribute("role", "gridcell");
             emptyCell.colSpan = Math.max(1, this.props.columns.length);
-            emptyCell.textContent = "No data available.";
+            emptyCell.textContent = query
+                ? "No rows match your filter."
+                : "No data available.";
             emptyRow.appendChild(emptyCell);
             tbody.appendChild(emptyRow);
         }
@@ -134,6 +169,7 @@ export class DataGrid {
             });
         }
         table.append(thead, tbody);
+        // Pagination controls; functionality will be added in T-06.
         const pagination = document.createElement("nav");
         pagination.setAttribute("aria-label", "Table pagination");
         const previousButton = document.createElement("button");
@@ -147,10 +183,13 @@ export class DataGrid {
         nextButton.textContent = "Next";
         nextButton.disabled = true;
         pagination.append(previousButton, pageIndicator, nextButton);
+        // Announce the current filter results.
         const status = document.createElement("p");
         status.setAttribute("role", "status");
         status.setAttribute("aria-live", "polite");
-        status.textContent = `${displayedData.length} rows loaded.`;
+        status.textContent = query
+            ? `${displayedData.length} of ${this.props.data.length} rows match the filter.`
+            : `${this.props.data.length} rows loaded.`;
         this.root.replaceChildren(filterLabel, filterInput, table, pagination, status);
     }
 }
