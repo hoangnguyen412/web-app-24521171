@@ -1,3 +1,4 @@
+
 import type {
   ColumnDef,
   DataGridProps,
@@ -9,6 +10,8 @@ interface SortState<T> {
   accessorKey: keyof T;
   direction: SortDirection;
 }
+
+const PAGE_SIZE = 3;
 
 // Compare numbers numerically and other values as text.
 function compareValues(left: unknown, right: unknown): number {
@@ -25,7 +28,7 @@ function compareValues(left: unknown, right: unknown): number {
   });
 }
 
-// Pure function: sort without mutating the original array.
+// T-04: Pure sorting function. Does not mutate the input array.
 export function sortData<T extends object>(
   data: readonly T[],
   accessorKey: keyof T,
@@ -48,7 +51,7 @@ export function sortData<T extends object>(
     .map(({ item }) => item);
 }
 
-// Pure function: filter across columns without mutating input data.
+// T-05: Pure filtering function across all configured columns.
 export function filterData<T extends object>(
   data: readonly T[],
   columns: readonly ColumnDef<T>[],
@@ -80,6 +83,7 @@ export class DataGrid<T extends object> {
 
   private sortState: SortState<T> | null = null;
   private filterQuery = "";
+  private pageIndex = 0;
 
   constructor(root: HTMLElement, props: DataGridProps<T>) {
     this.root = root;
@@ -91,6 +95,7 @@ export class DataGrid<T extends object> {
     this.render();
   }
 
+  // T-04: Cycle none -> ascending -> descending -> none.
   private toggleSort(column: ColumnDef<T>): void {
     if (!column.sortable) return;
 
@@ -111,8 +116,18 @@ export class DataGrid<T extends object> {
     this.render();
   }
 
+  // T-06: Change pages and keep the index within valid bounds.
+  private changePage(nextPage: number, pageCount: number): void {
+    this.pageIndex = Math.max(
+      0,
+      Math.min(nextPage, pageCount - 1)
+    );
+
+    this.render();
+  }
+
   private render(): void {
-    // Filter control.
+    // Filter input and its visible label.
     const filterLabel = document.createElement("label");
     filterLabel.htmlFor = `${this.instanceId}-filter`;
     filterLabel.textContent = "Filter rows";
@@ -127,9 +142,10 @@ export class DataGrid<T extends object> {
       const cursorPosition = filterInput.selectionStart;
 
       this.filterQuery = filterInput.value;
+
+      // Render updates the result list and clamps the current page.
       this.render();
 
-      // Restore focus and cursor after rendering.
       const updatedInput = this.root.querySelector<HTMLInputElement>(
         `#${this.instanceId}-filter`
       );
@@ -146,22 +162,42 @@ export class DataGrid<T extends object> {
       }
     });
 
-    // Filter -> Sort. Pagination will be added in T-06.
-    const query = this.filterQuery.trim().toLocaleLowerCase();
-
+    // T-05: Filter first.
     const filteredData = filterData(
       this.props.data,
       this.props.columns,
-      query
+      this.filterQuery
     );
 
-    const displayedData = this.sortState
+    // T-04: Sort the filtered results second.
+    const sortedData = this.sortState
       ? sortData(
           filteredData,
           this.sortState.accessorKey,
           this.sortState.direction
         )
       : filteredData;
+
+    // T-06: Calculate the number of pages.
+    // Empty results still use the logical page "1 of 1".
+    const pageCount = Math.max(
+      1,
+      Math.ceil(sortedData.length / PAGE_SIZE)
+    );
+
+    // Clamp the page if filtering reduces the number of results.
+    this.pageIndex = Math.max(
+      0,
+      Math.min(this.pageIndex, pageCount - 1)
+    );
+
+    // T-06: Paginate the filtered and sorted results.
+    const startIndex = this.pageIndex * PAGE_SIZE;
+
+    const displayedData = sortedData.slice(
+      startIndex,
+      startIndex + PAGE_SIZE
+    );
 
     // Native table with ARIA grid semantics.
     const table = document.createElement("table");
@@ -222,7 +258,7 @@ export class DataGrid<T extends object> {
 
     thead.appendChild(headerRow);
 
-    // Table body.
+    // Render only the rows belonging to the current page.
     const tbody = document.createElement("tbody");
 
     if (displayedData.length === 0) {
@@ -231,9 +267,12 @@ export class DataGrid<T extends object> {
 
       const emptyCell = document.createElement("td");
       emptyCell.setAttribute("role", "gridcell");
-      emptyCell.colSpan = Math.max(1, this.props.columns.length);
+      emptyCell.colSpan = Math.max(
+        1,
+        this.props.columns.length
+      );
 
-      emptyCell.textContent = query
+      emptyCell.textContent = this.filterQuery.trim()
         ? "No rows match your filter."
         : "No data available.";
 
@@ -251,6 +290,7 @@ export class DataGrid<T extends object> {
 
           const value = item[column.accessorKey];
 
+          // Render values as text, never as HTML.
           cell.textContent =
             value === null || value === undefined
               ? ""
@@ -265,22 +305,31 @@ export class DataGrid<T extends object> {
 
     table.append(thead, tbody);
 
-    // Pagination controls; functionality will be added in T-06.
+    // T-06: Pagination controls.
     const pagination = document.createElement("nav");
     pagination.setAttribute("aria-label", "Table pagination");
 
     const previousButton = document.createElement("button");
     previousButton.type = "button";
     previousButton.textContent = "Previous";
-    previousButton.disabled = true;
+    previousButton.disabled = this.pageIndex === 0;
+
+    previousButton.addEventListener("click", () => {
+      this.changePage(this.pageIndex - 1, pageCount);
+    });
 
     const pageIndicator = document.createElement("p");
-    pageIndicator.textContent = "Page 1 of 1";
+    pageIndicator.textContent =
+      `Page ${this.pageIndex + 1} of ${pageCount}`;
 
     const nextButton = document.createElement("button");
     nextButton.type = "button";
     nextButton.textContent = "Next";
-    nextButton.disabled = true;
+    nextButton.disabled = this.pageIndex >= pageCount - 1;
+
+    nextButton.addEventListener("click", () => {
+      this.changePage(this.pageIndex + 1, pageCount);
+    });
 
     pagination.append(
       previousButton,
@@ -288,14 +337,14 @@ export class DataGrid<T extends object> {
       nextButton
     );
 
-    // Announce the current filter results.
+    // Live status for screen readers.
     const status = document.createElement("p");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
 
-    status.textContent = query
-      ? `${displayedData.length} of ${this.props.data.length} rows match the filter.`
-      : `${this.props.data.length} rows loaded.`;
+    status.textContent = this.filterQuery.trim()
+      ? `${filteredData.length} of ${this.props.data.length} rows match the filter. Page ${this.pageIndex + 1} of ${pageCount}.`
+      : `${sortedData.length} rows available. Page ${this.pageIndex + 1} of ${pageCount}.`;
 
     this.root.replaceChildren(
       filterLabel,
