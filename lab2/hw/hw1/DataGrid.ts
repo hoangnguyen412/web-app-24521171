@@ -1,8 +1,52 @@
-
 import type {
   ColumnDef,
   DataGridProps,
 } from "./data-grid-contract";
+
+type SortDirection = "ascending" | "descending";
+
+interface SortState<T> {
+  accessorKey: keyof T;
+  direction: SortDirection;
+}
+
+// Compare numeric values as numbers and other values as text.
+function compareValues(left: unknown, right: unknown): number {
+  if (left == null) return right == null ? 0 : 1;
+  if (right == null) return -1;
+
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+
+  return String(left).localeCompare(String(right), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+// Pure function: returns a new array and never mutates the input.
+export function sortData<T extends object>(
+  data: readonly T[],
+  accessorKey: keyof T,
+  direction: SortDirection
+): T[] {
+  return data
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const result = compareValues(
+        a.item[accessorKey],
+        b.item[accessorKey]
+      );
+
+      if (result === 0) {
+        return a.index - b.index;
+      }
+
+      return direction === "ascending" ? result : -result;
+    })
+    .map(({ item }) => item);
+}
 
 let gridCounter = 0;
 
@@ -10,6 +54,8 @@ export class DataGrid<T extends object> {
   private readonly root: HTMLElement;
   private readonly props: DataGridProps<T>;
   private readonly instanceId: string;
+
+  private sortState: SortState<T> | null = null;
 
   constructor(root: HTMLElement, props: DataGridProps<T>) {
     this.root = root;
@@ -21,8 +67,27 @@ export class DataGrid<T extends object> {
     this.render();
   }
 
+  private toggleSort(column: ColumnDef<T>): void {
+    if (!column.sortable) return;
+
+    if (this.sortState?.accessorKey !== column.accessorKey) {
+      this.sortState = {
+        accessorKey: column.accessorKey,
+        direction: "ascending",
+      };
+    } else if (this.sortState.direction === "ascending") {
+      this.sortState = {
+        accessorKey: column.accessorKey,
+        direction: "descending",
+      };
+    } else {
+      this.sortState = null;
+    }
+
+    this.render();
+  }
+
   private render(): void {
-    // Accessible filter label and input.
     const filterLabel = document.createElement("label");
     filterLabel.htmlFor = `${this.instanceId}-filter`;
     filterLabel.textContent = "Filter rows";
@@ -32,7 +97,6 @@ export class DataGrid<T extends object> {
     filterInput.type = "search";
     filterInput.name = "filter";
 
-    // Native table with ARIA grid semantics.
     const table = document.createElement("table");
     table.setAttribute("role", "grid");
     table.setAttribute("aria-label", this.props.ariaLabel);
@@ -52,15 +116,34 @@ export class DataGrid<T extends object> {
       headerCell.setAttribute("role", "columnheader");
 
       if (column.sortable) {
-        headerCell.setAttribute("aria-sort", "none");
+        const isActive =
+          this.sortState?.accessorKey === column.accessorKey;
+
+        const direction = isActive
+          ? this.sortState!.direction
+          : "none";
+
+        headerCell.setAttribute("aria-sort", direction);
 
         const sortButton = document.createElement("button");
         sortButton.type = "button";
-        sortButton.textContent = column.header;
+
+        const indicator =
+          direction === "ascending"
+            ? "▲"
+            : direction === "descending"
+              ? "▼"
+              : "↕";
+
+        sortButton.textContent = `${column.header} ${indicator}`;
         sortButton.setAttribute(
           "aria-label",
-          `Sort by ${column.header}`
+          `Sort by ${column.header}. Current order: ${direction}.`
         );
+
+        sortButton.addEventListener("click", () => {
+          this.toggleSort(column);
+        });
 
         headerCell.appendChild(sortButton);
       } else {
@@ -72,10 +155,17 @@ export class DataGrid<T extends object> {
 
     thead.appendChild(headerRow);
 
-    // Render cell content as text, never as HTML.
     const tbody = document.createElement("tbody");
 
-    if (this.props.data.length === 0) {
+    const displayedData = this.sortState
+      ? sortData(
+          this.props.data,
+          this.sortState.accessorKey,
+          this.sortState.direction
+        )
+      : this.props.data;
+
+    if (displayedData.length === 0) {
       const emptyRow = document.createElement("tr");
       emptyRow.setAttribute("role", "row");
 
@@ -87,7 +177,7 @@ export class DataGrid<T extends object> {
       emptyRow.appendChild(emptyCell);
       tbody.appendChild(emptyRow);
     } else {
-      this.props.data.forEach((item) => {
+      displayedData.forEach((item) => {
         const row = document.createElement("tr");
         row.setAttribute("role", "row");
 
@@ -97,6 +187,7 @@ export class DataGrid<T extends object> {
           cell.setAttribute("headers", headerIds[index]);
 
           const value = item[column.accessorKey];
+
           cell.textContent =
             value === null || value === undefined
               ? ""
@@ -111,7 +202,6 @@ export class DataGrid<T extends object> {
 
     table.append(thead, tbody);
 
-    // Pagination controls; behaviour is added in T-06.
     const pagination = document.createElement("nav");
     pagination.setAttribute("aria-label", "Table pagination");
 
@@ -128,17 +218,12 @@ export class DataGrid<T extends object> {
     nextButton.textContent = "Next";
     nextButton.disabled = true;
 
-    pagination.append(
-      previousButton,
-      pageIndicator,
-      nextButton
-    );
+    pagination.append(previousButton, pageIndicator, nextButton);
 
-    // Status region; announcements are wired up in later tasks.
     const status = document.createElement("p");
     status.setAttribute("role", "status");
     status.setAttribute("aria-live", "polite");
-    status.textContent = `${this.props.data.length} rows loaded.`;
+    status.textContent = `${displayedData.length} rows loaded.`;
 
     this.root.replaceChildren(
       filterLabel,
@@ -150,7 +235,7 @@ export class DataGrid<T extends object> {
   }
 }
 
-// Demo data for the assignment page.
+// Demo data
 interface Employee {
   id: number;
   name: string;
@@ -168,11 +253,7 @@ const employees: Employee[] = [
 const columns: ColumnDef<Employee>[] = [
   { header: "ID", accessorKey: "id", sortable: true },
   { header: "Name", accessorKey: "name", sortable: true },
-  {
-    header: "Department",
-    accessorKey: "department",
-    sortable: true,
-  },
+  { header: "Department", accessorKey: "department", sortable: true },
   { header: "Status", accessorKey: "status", sortable: true },
 ];
 
