@@ -1,5 +1,4 @@
 const PAGE_SIZE = 3;
-// Compare numbers numerically and other values as text.
 function compareValues(left, right) {
     if (left == null)
         return right == null ? 0 : 1;
@@ -13,31 +12,26 @@ function compareValues(left, right) {
         sensitivity: "base",
     });
 }
-// T-04: Pure sorting function.
+// T-04: Sort without mutating the input.
 export function sortData(data, accessorKey, direction) {
     return data
         .map((item, index) => ({ item, index }))
         .sort((a, b) => {
         const result = compareValues(a.item[accessorKey], b.item[accessorKey]);
-        if (result === 0) {
+        if (result === 0)
             return a.index - b.index;
-        }
         return direction === "ascending" ? result : -result;
     })
         .map(({ item }) => item);
 }
-// T-05: Pure, case-insensitive filtering function.
+// T-05: Case-insensitive text filtering.
 export function filterData(data, columns, query) {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    if (!normalizedQuery) {
+    if (!normalizedQuery)
         return [...data];
-    }
-    return data.filter((item) => columns.some((column) => {
-        const value = item[column.accessorKey];
-        return String(value ?? "")
-            .toLocaleLowerCase()
-            .includes(normalizedQuery);
-    }));
+    return data.filter((item) => columns.some((column) => String(item[column.accessorKey] ?? "")
+        .toLocaleLowerCase()
+        .includes(normalizedQuery)));
 }
 let gridCounter = 0;
 export class DataGrid {
@@ -45,54 +39,48 @@ export class DataGrid {
         this.sortState = null;
         this.filterQuery = "";
         this.pageIndex = 0;
-        // T-07: Currently active cell.
         this.activeCell = {
             rowIndex: 0,
             columnIndex: 0,
         };
-        // Track selected rows by their object references.
         this.selectedRows = new Set();
+        this.pendingAnnouncement = "";
         this.root = root;
         this.props = props;
         gridCounter += 1;
         this.instanceId = `data-grid-${gridCounter}`;
+        // Create the live region once. Keep the same DOM node on re-render.
+        this.statusElement = document.createElement("p");
+        this.statusElement.setAttribute("role", "status");
+        this.statusElement.setAttribute("aria-live", "polite");
+        this.statusElement.dataset.gridStatus = "";
+        this.root.replaceChildren(this.statusElement);
         this.render();
     }
     announce(message) {
-        const status = this.root.querySelector("[data-grid-status]");
-        if (status) {
-            status.textContent = message;
-        }
+        this.statusElement.textContent = message;
     }
-    // Update roving tabindex and optionally move keyboard focus.
     setActiveCell(table, rowIndex, columnIndex, moveFocus) {
         this.activeCell = { rowIndex, columnIndex };
         const cells = table.querySelectorAll('[role="gridcell"][data-row-index][data-column-index]');
         let targetCell;
         cells.forEach((cell) => {
-            const currentRow = Number(cell.dataset.rowIndex);
-            const currentColumn = Number(cell.dataset.columnIndex);
-            const isActive = currentRow === rowIndex &&
-                currentColumn === columnIndex;
+            const isActive = Number(cell.dataset.rowIndex) === rowIndex &&
+                Number(cell.dataset.columnIndex) === columnIndex;
             cell.tabIndex = isActive ? 0 : -1;
-            if (isActive) {
+            if (isActive)
                 targetCell = cell;
-            }
         });
-        if (moveFocus) {
+        if (moveFocus)
             targetCell?.focus();
-        }
     }
-    // T-07: Keyboard navigation and row selection.
+    // T-07: Arrow navigation, Enter selection, and Space toggle.
     handleGridKeyDown(event, displayedData, table) {
         const target = event.target;
         if (!(target instanceof HTMLElement))
             return;
         const cell = target.closest('[role="gridcell"][data-row-index][data-column-index]');
-        if (!cell)
-            return;
-        // No row navigation or selection when the grid has no results.
-        if (displayedData.length === 0)
+        if (!cell || displayedData.length === 0)
             return;
         const rowIndex = Number(cell.dataset.rowIndex);
         const columnIndex = Number(cell.dataset.columnIndex);
@@ -120,7 +108,6 @@ export class DataGrid {
                 const item = displayedData[rowIndex];
                 if (!item)
                     return;
-                // Enter selects the row and calls the contract callback.
                 this.selectedRows.add(item);
                 cell.closest("tr")?.setAttribute("aria-selected", "true");
                 this.announce(`Row ${this.pageIndex * PAGE_SIZE + rowIndex + 1} selected.`);
@@ -132,27 +119,25 @@ export class DataGrid {
                 const item = displayedData[rowIndex];
                 if (!item)
                     return;
-                // Space toggles the selection state.
-                const isSelected = this.selectedRows.has(item);
-                if (isSelected) {
+                const wasSelected = this.selectedRows.has(item);
+                if (wasSelected) {
                     this.selectedRows.delete(item);
                 }
                 else {
                     this.selectedRows.add(item);
                 }
-                cell.closest("tr")?.setAttribute("aria-selected", String(!isSelected));
-                this.announce(`Row ${this.pageIndex * PAGE_SIZE + rowIndex + 1} ${isSelected ? "deselected" : "selected"}.`);
+                cell.closest("tr")?.setAttribute("aria-selected", String(!wasSelected));
+                this.announce(`Row ${this.pageIndex * PAGE_SIZE + rowIndex + 1} ${wasSelected ? "deselected" : "selected"}.`);
                 return;
             }
             default:
-                // Tab and Shift+Tab use the browser's normal navigation.
+                // Leave Tab and Shift+Tab to native browser navigation.
                 return;
         }
-        // Prevent arrow keys from scrolling the page.
         event.preventDefault();
         this.setActiveCell(table, nextRow, nextColumn, true);
     }
-    // T-04: Cycle none -> ascending -> descending -> none.
+    // T-04: none -> ascending -> descending -> none.
     toggleSort(column) {
         if (!column.sortable)
             return;
@@ -171,30 +156,32 @@ export class DataGrid {
         else {
             this.sortState = null;
         }
+        this.pendingAnnouncement = this.sortState
+            ? `Sorted by ${column.header}, ${this.sortState.direction}.`
+            : `Sorting cleared for ${column.header}.`;
         const columnIndex = this.props.columns.findIndex((item) => item.accessorKey === column.accessorKey);
         this.render();
-        // Preserve focus on the sort button after re-rendering.
         this.root
             .querySelector(`[data-sort-index="${columnIndex}"]`)
             ?.focus();
     }
-    // T-06: Pagination with focus preservation.
+    // T-06: Paginate while keeping focus on a pagination control.
     changePage(nextPage, pageCount, activatedControl) {
         this.pageIndex = Math.max(0, Math.min(nextPage, pageCount - 1));
+        this.pendingAnnouncement =
+            `Page ${this.pageIndex + 1} of ${pageCount}.`;
         this.render();
         let control = this.root.querySelector(`[data-pagination-control="${activatedControl}"]`);
-        // If the activated button becomes disabled, focus the other button.
         if (control?.disabled) {
             const fallbackControl = activatedControl === "next" ? "previous" : "next";
             const fallback = this.root.querySelector(`[data-pagination-control="${fallbackControl}"]`);
-            if (fallback && !fallback.disabled) {
+            if (fallback && !fallback.disabled)
                 control = fallback;
-            }
         }
-        control?.focus();
+        if (control && !control.disabled)
+            control.focus();
     }
     render() {
-        // T-05: Filter input.
         const filterLabel = document.createElement("label");
         filterLabel.htmlFor = `${this.instanceId}-filter`;
         filterLabel.textContent = "Filter rows";
@@ -206,8 +193,8 @@ export class DataGrid {
         filterInput.addEventListener("input", () => {
             const cursorPosition = filterInput.selectionStart;
             this.filterQuery = filterInput.value;
+            this.pendingAnnouncement = "Filter results updated.";
             this.render();
-            // Keep focus in the filter input after updating the grid.
             const updatedInput = this.root.querySelector(`#${this.instanceId}-filter`);
             updatedInput?.focus();
             if (updatedInput && cursorPosition !== null) {
@@ -215,24 +202,17 @@ export class DataGrid {
                 updatedInput.setSelectionRange(position, position);
             }
         });
-        // Pipeline 1: Filter.
+        // Pipeline: filter -> sort -> paginate.
         const filteredData = filterData(this.props.data, this.props.columns, this.filterQuery);
-        // Pipeline 2: Sort.
         const sortedData = this.sortState
             ? sortData(filteredData, this.sortState.accessorKey, this.sortState.direction)
             : filteredData;
-        // Pipeline 3: Calculate and clamp pagination.
         const pageCount = Math.max(1, Math.ceil(sortedData.length / PAGE_SIZE));
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, pageCount - 1));
         const startIndex = this.pageIndex * PAGE_SIZE;
         const displayedData = sortedData.slice(startIndex, startIndex + PAGE_SIZE);
-        // Keep the active cell valid when results or pages change.
-        if (displayedData.length === 0 ||
-            this.props.columns.length === 0) {
-            this.activeCell = {
-                rowIndex: 0,
-                columnIndex: 0,
-            };
+        if (displayedData.length === 0 || this.props.columns.length === 0) {
+            this.activeCell = { rowIndex: 0, columnIndex: 0 };
         }
         else {
             this.activeCell = {
@@ -240,7 +220,6 @@ export class DataGrid {
                 columnIndex: Math.min(this.activeCell.columnIndex, this.props.columns.length - 1),
             };
         }
-        // Native HTML table and ARIA grid semantics.
         const table = document.createElement("table");
         table.setAttribute("role", "grid");
         table.setAttribute("aria-label", this.props.ariaLabel);
@@ -308,14 +287,13 @@ export class DataGrid {
                     cell.setAttribute("headers", headerIds[columnIndex]);
                     cell.dataset.rowIndex = String(rowIndex);
                     cell.dataset.columnIndex = String(columnIndex);
-                    // Roving tabindex: only one data cell is in the Tab order.
                     cell.tabIndex =
                         rowIndex === this.activeCell.rowIndex &&
                             columnIndex === this.activeCell.columnIndex
                             ? 0
                             : -1;
                     const value = item[column.accessorKey];
-                    // Render cell values as text, never as HTML.
+                    // Render data as text, never as HTML.
                     cell.textContent =
                         value === null || value === undefined
                             ? ""
@@ -326,20 +304,18 @@ export class DataGrid {
             });
         }
         table.append(thead, tbody);
-        // Update active cell when reached by Tab or mouse focus.
         table.addEventListener("focusin", (event) => {
             const target = event.target;
             if (!(target instanceof HTMLElement))
                 return;
             const cell = target.closest('[role="gridcell"][data-row-index][data-column-index]');
-            if (!cell)
+            if (!cell || displayedData.length === 0)
                 return;
             this.setActiveCell(table, Number(cell.dataset.rowIndex), Number(cell.dataset.columnIndex), false);
         });
         table.addEventListener("keydown", (event) => {
             this.handleGridKeyDown(event, displayedData, table);
         });
-        // T-06: Pagination controls.
         const pagination = document.createElement("nav");
         pagination.setAttribute("aria-label", "Table pagination");
         const previousButton = document.createElement("button");
@@ -362,15 +338,22 @@ export class DataGrid {
             this.changePage(this.pageIndex + 1, pageCount, "next");
         });
         pagination.append(previousButton, pageIndicator, nextButton);
-        // Live region for screen-reader announcements.
-        const status = document.createElement("p");
-        status.setAttribute("role", "status");
-        status.setAttribute("aria-live", "polite");
-        status.dataset.gridStatus = "";
-        status.textContent = this.filterQuery.trim()
+        // Keep the live region mounted while replacing the other controls.
+        const summary = this.filterQuery.trim()
             ? `${filteredData.length} of ${this.props.data.length} rows match the filter. Page ${this.pageIndex + 1} of ${pageCount}.`
             : `${sortedData.length} rows available. Page ${this.pageIndex + 1} of ${pageCount}.`;
-        this.root.replaceChildren(filterLabel, filterInput, table, pagination, status);
+        this.statusElement.textContent = this.pendingAnnouncement
+            ? `${this.pendingAnnouncement} ${summary}`
+            : summary;
+        this.pendingAnnouncement = "";
+        for (const child of Array.from(this.root.children)) {
+            if (child !== this.statusElement)
+                child.remove();
+        }
+        this.root.insertBefore(filterLabel, this.statusElement);
+        this.root.insertBefore(filterInput, this.statusElement);
+        this.root.insertBefore(table, this.statusElement);
+        this.root.insertBefore(pagination, this.statusElement);
     }
 }
 const employees = [
@@ -391,9 +374,5 @@ if (root) {
         data: employees,
         columns,
         ariaLabel: "Employee data",
-        onRowSelect: (item) => {
-            // The selected row is also announced in the live region.
-            console.info("Selected employee:", item.name);
-        },
     });
 }
