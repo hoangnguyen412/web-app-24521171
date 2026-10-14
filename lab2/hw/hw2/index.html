@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Concurrent FIFO Audio Visualizer</title>
+  </head>
+
+  <body>
+    <main>
+      <h1>Concurrent FIFO Audio Visualizer</h1>
+
+      <p>
+        Enqueue tracks to download, decode, and play them in FIFO order.
+      </p>
+
+      <section aria-labelledby="player-heading">
+        <h2 id="player-heading">Audio Queue</h2>
+
+        <label for="track-url">Audio URL</label>
+        <input
+          id="track-url"
+          type="url"
+          placeholder="Enter a direct audio URL"
+          autocomplete="url"
+        />
+
+        <button id="play-track" type="button">
+          Enqueue and Play
+        </button>
+
+        <p id="playback-status" role="status" aria-live="polite">
+          Ready.
+        </p>
+      </section>
+
+      <section aria-labelledby="analyser-heading">
+        <h2 id="analyser-heading">Analyser Status</h2>
+
+        <output id="frequency-output" aria-live="polite">
+          Play a track to read frequency data.
+        </output>
+      </section>
+    </main>
+
+    <script type="module" src="./dist/main.js"></script>
+  </body>
+</html>
