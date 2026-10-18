@@ -1,40 +1,21 @@
 import { AudioEngine } from "./audio-engine.js";
+import { AudioVisualizer } from "./visualizer.js";
 const trackUrlInput = document.querySelector("#track-url");
 const playButton = document.querySelector("#play-track");
 const status = document.querySelector("#playback-status");
-const frequencyOutput = document.querySelector("#frequency-output");
+const canvas = document.querySelector("#audio-visualizer");
 let engine = null;
+let visualizer = null;
 let activeRequests = 0;
-let monitorTimer = null;
-function getEngine() {
+function getAudioEngine() {
     if (!engine) {
+        if (!canvas) {
+            throw new Error("Audio visualizer canvas was not found.");
+        }
         engine = new AudioEngine(512);
+        visualizer = new AudioVisualizer(canvas, engine);
     }
     return engine;
-}
-function startFrequencyMonitor(audioEngine) {
-    if (monitorTimer !== null)
-        return;
-    monitorTimer = window.setInterval(() => {
-        const data = audioEngine.getFrequencyData();
-        let total = 0;
-        for (let index = 0; index < data.length; index += 1) {
-            total += data[index] ?? 0;
-        }
-        const average = data.length > 0 ? total / data.length : 0;
-        if (frequencyOutput) {
-            frequencyOutput.value =
-                `FFT size: ${audioEngine.analyser.fftSize} | ` +
-                    `Frequency bins: ${data.length} | ` +
-                    `Average level: ${average.toFixed(1)}`;
-        }
-    }, 150);
-}
-function stopFrequencyMonitor() {
-    if (monitorTimer === null)
-        return;
-    window.clearInterval(monitorTimer);
-    monitorTimer = null;
 }
 playButton?.addEventListener("click", async () => {
     const trackUrl = trackUrlInput?.value.trim();
@@ -44,10 +25,10 @@ playButton?.addEventListener("click", async () => {
         }
         return;
     }
+    activeRequests += 1;
     try {
-        const audioEngine = getEngine();
-        activeRequests += 1;
-        startFrequencyMonitor(audioEngine);
+        const audioEngine = getAudioEngine();
+        visualizer?.start();
         if (status) {
             status.textContent = `Queued: ${trackUrl}`;
         }
@@ -64,8 +45,9 @@ playButton?.addEventListener("click", async () => {
     }
     finally {
         activeRequests -= 1;
+        // Stop rendering when every queued playback request has settled.
         if (activeRequests === 0) {
-            stopFrequencyMonitor();
+            visualizer?.stop();
         }
     }
 });
