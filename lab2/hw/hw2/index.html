@@ -8,32 +8,112 @@
     <title>Concurrent FIFO Audio Visualizer</title>
 
     <style>
-      body {
-        max-width: 1000px;
-        margin: 0 auto;
-        padding: 24px;
+      :root {
         font-family: Arial, Helvetica, sans-serif;
         color: #172033;
         background: #f8fafc;
       }
 
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1,
+      h2 {
+        line-height: 1.3;
+      }
+
       label {
         display: block;
         margin-bottom: 8px;
+        font-weight: 600;
       }
 
       input {
-        box-sizing: border-box;
         width: min(100%, 520px);
         min-height: 44px;
         padding: 10px;
+        font: inherit;
       }
 
       button {
         min-height: 44px;
         margin: 12px 8px 12px 0;
         padding: 10px 16px;
+        font: inherit;
         cursor: pointer;
+      }
+
+      button:focus-visible,
+      input:focus-visible {
+        outline: 3px solid #005fcc;
+        outline-offset: 3px;
+      }
+
+      #playback-status {
+        min-height: 24px;
+        line-height: 1.5;
+      }
+
+      #track-queue {
+        display: grid;
+        gap: 10px;
+        padding-left: 32px;
+      }
+
+      #track-queue li {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: start;
+        gap: 12px;
+        padding: 12px;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+      }
+
+      .track-url {
+        overflow-wrap: anywhere;
+        line-height: 1.5;
+      }
+
+      .track-status {
+        padding: 4px 8px;
+        border: 1px solid #64748b;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .status-queued {
+        color: #854d0e;
+        background: #fef9c3;
+      }
+
+      .status-playing {
+        color: #075985;
+        background: #e0f2fe;
+      }
+
+      .status-completed {
+        color: #166534;
+        background: #dcfce7;
+      }
+
+      .status-cancelled {
+        color: #475569;
+        background: #e2e8f0;
+      }
+
+      .status-failed {
+        color: #991b1b;
+        background: #fee2e2;
       }
 
       #audio-visualizer {
@@ -44,8 +124,19 @@
         border-radius: 8px;
       }
 
-      #playback-status {
-        min-height: 24px;
+      @media (max-width: 600px) {
+        body {
+          padding: 16px;
+        }
+
+        #track-queue li {
+          grid-template-columns: auto minmax(0, 1fr);
+        }
+
+        .track-status {
+          grid-column: 2;
+          justify-self: start;
+        }
       }
     </style>
   </head>
@@ -66,17 +157,25 @@
           autocomplete="url"
         />
 
-        <button id="play-track" type="button">
-          Enqueue and Play
-        </button>
+        <div>
+          <button id="play-track" type="button">
+            Enqueue and Play
+          </button>
 
-        <button id="stop-playback" type="button">
-          Stop Playback
-        </button>
+          <button id="stop-playback" type="button">
+            Stop Playback
+          </button>
+        </div>
 
         <p id="playback-status" role="status" aria-live="polite">
           Ready.
         </p>
+      </section>
+
+      <section aria-labelledby="queue-heading">
+        <h2 id="queue-heading">Tracks in FIFO Order</h2>
+
+        <ol id="track-queue" aria-label="Tracks in playback order"></ol>
       </section>
 
       <section aria-labelledby="visualizer-heading">
