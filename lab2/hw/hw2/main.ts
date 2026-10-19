@@ -7,6 +7,9 @@ const trackUrlInput =
 const playButton =
   document.querySelector<HTMLButtonElement>("#play-track");
 
+const stopButton =
+  document.querySelector<HTMLButtonElement>("#stop-playback");
+
 const status =
   document.querySelector<HTMLElement>("#playback-status");
 
@@ -16,6 +19,7 @@ const canvas =
 let engine: AudioEngine | null = null;
 let visualizer: AudioVisualizer | null = null;
 let activeRequests = 0;
+let disposed = false;
 
 function getAudioEngine(): AudioEngine {
   if (!engine) {
@@ -30,13 +34,11 @@ function getAudioEngine(): AudioEngine {
   return engine;
 }
 
-async function handlePlayClick(): Promise<void> {
+async function playTrack(): Promise<void> {
   const trackUrl = trackUrlInput?.value.trim();
 
   if (!trackUrl) {
-    if (status) {
-      status.textContent = "Enter an audio URL first.";
-    }
+    if (status) status.textContent = "Enter an audio URL first.";
     return;
   }
 
@@ -53,26 +55,65 @@ async function handlePlayClick(): Promise<void> {
 
     await audioEngine.enqueueAndPlay(trackUrl);
 
-    if (status) {
+    if (!disposed && status) {
       status.textContent = `Playback finished: ${trackUrl}`;
     }
   } catch (error: unknown) {
-    const message =
-      error instanceof Error ? error.message : String(error);
+    if (!disposed && status) {
+      if (
+        error instanceof Error &&
+        error.name === "AbortError"
+      ) {
+        status.textContent = "Playback cancelled.";
+      } else {
+        const message =
+          error instanceof Error ? error.message : String(error);
 
-    if (status) {
-      status.textContent = `Playback failed: ${message}`;
+        status.textContent = `Playback failed: ${message}`;
+      }
     }
   } finally {
     activeRequests -= 1;
 
-    // Stop rendering after all queued playback requests settle.
     if (activeRequests === 0) {
       visualizer?.stop();
     }
   }
 }
 
-playButton?.addEventListener("click", () => {
-  void handlePlayClick();
-});
+function handlePlayClick(): void {
+  void playTrack();
+}
+
+function handleStopClick(): void {
+  engine?.stopAll();
+  visualizer?.stop();
+
+  if (status) {
+    status.textContent = "Playback stopped; pending tracks cancelled.";
+  }
+}
+
+function handlePageHide(): void {
+  if (disposed) return;
+
+  disposed = true;
+
+  playButton?.removeEventListener("click", handlePlayClick);
+  stopButton?.removeEventListener("click", handleStopClick);
+  window.removeEventListener("pagehide", handlePageHide);
+
+  visualizer?.destroy();
+  visualizer = null;
+
+  const oldEngine = engine;
+  engine = null;
+
+  if (oldEngine) {
+    void oldEngine.destroy();
+  }
+}
+
+playButton?.addEventListener("click", handlePlayClick);
+stopButton?.addEventListener("click", handleStopClick);
+window.addEventListener("pagehide", handlePageHide, { once: true });

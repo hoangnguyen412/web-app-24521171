@@ -2,19 +2,40 @@ import { AudioTaskQueue } from "./audio-queue-controller.js";
 
 export type SupportedFftSize = 256 | 512;
 
+interface PlaybackRequest {
+  trackUrl: string;
+  cancelled: boolean;
+  loadSettled: boolean;
+}
+
+interface ActivePlayback {
+  request: PlaybackRequest;
+  source: AudioBufferSourceNode;
+  cancel: () => void;
+}
+
 type LoadResult =
   | { ok: true; buffer: AudioBuffer }
   | { ok: false; error: unknown };
+
+function createAbortError(): DOMException {
+  return new DOMException(
+    "Audio playback was cancelled.",
+    "AbortError"
+  );
+}
 
 export class AudioEngine {
   readonly audioContext: AudioContext;
   readonly analyser: AnalyserNode;
 
   private readonly taskQueue: AudioTaskQueue;
-  private readonly frequencyData: Uint8Array;
+  private readonly frequencyData: Uint8Array<ArrayBuffer>;
+  private readonly pendingRequests = new Set<PlaybackRequest>();
 
   private playbackChain: Promise<void> = Promise.resolve();
-  private currentSource: AudioBufferSourceNode | null = null;
+  private currentPlayback: ActivePlayback | null = null;
+  private destroyed = false;
 
   constructor(fftSize: SupportedFftSize = 512) {
     this.audioContext = new AudioContext();
@@ -22,119 +43,226 @@ export class AudioEngine {
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = fftSize;
     this.analyser.smoothingTimeConstant = 0.8;
-
-    // Shared graph: source -> analyser -> speakers.
     this.analyser.connect(this.audioContext.destination);
 
-    // Reuse the same AudioContext for downloading and decoding.
     this.taskQueue = new AudioTaskQueue(this.audioContext);
 
-    // Allocate once; reuse the array when reading frequency data.
+    // Allocate once and reuse for every visualizer frame.
     this.frequencyData = new Uint8Array(
       this.analyser.frequencyBinCount
     );
   }
 
-  /**
-   * Download and play a track in FIFO order.
-   * The returned promise resolves when this track finishes playing.
-   */
   enqueueAndPlay(trackUrl: string): Promise<void> {
-    // Call resume directly from the user's interaction.
+    if (this.destroyed) {
+      return Promise.reject(createAbortError());
+    }
+
+    const request: PlaybackRequest = {
+      trackUrl,
+      cancelled: false,
+      loadSettled: false,
+    };
+
+    this.pendingRequests.add(request);
+
+    // Resume immediately from the user's click interaction.
     const resumePromise =
       this.audioContext.state === "suspended"
         ? this.audioContext.resume()
         : Promise.resolve();
 
-    // Convert rejection into a result immediately so a queued
-    // download failure does not create an unhandled rejection
-    // while waiting for an earlier track to finish playing.
+    // Attach both handlers immediately to avoid unhandled rejections
+    // while the request waits for an earlier track to finish.
     const loadResult: Promise<LoadResult> = this.taskQueue
       .enqueue(trackUrl)
       .then(
-        (buffer): LoadResult => ({ ok: true, buffer }),
-        (error: unknown): LoadResult => ({ ok: false, error })
+        (buffer): LoadResult => {
+          request.loadSettled = true;
+          return { ok: true, buffer };
+        },
+        (error: unknown): LoadResult => {
+          request.loadSettled = true;
+          return { ok: false, error };
+        }
       );
 
-    // Every playback waits for the previous playback to finish.
-    const playback = this.playbackChain.then(async () => {
-      await resumePromise;
+    // Preserve playback order.
+    const playback = this.playbackChain
+      .then(async () => {
+        await resumePromise;
 
-      const result = await loadResult;
+        if (this.destroyed || request.cancelled) {
+          throw createAbortError();
+        }
 
-      if (!result.ok) {
-        throw result.error;
-      }
+        const result = await loadResult;
 
-      await this.playBuffer(result.buffer);
-    });
+        if (!result.ok) {
+          throw result.error;
+        }
 
-    // A failed track must not stop subsequent queued playback.
+        if (this.destroyed || request.cancelled) {
+          throw createAbortError();
+        }
+
+        await this.playBuffer(result.buffer, request);
+      })
+      .finally(() => {
+        this.pendingRequests.delete(request);
+      });
+
+    // A rejected playback must not block later tracks.
     this.playbackChain = playback.catch(() => undefined);
 
     return playback;
   }
 
-  /**
-   * Cancel a queued or currently downloading task by URL.
-   * Returns false if that task is no longer pending.
-   */
   cancel(trackUrl: string): boolean {
-    return this.taskQueue.cancel(trackUrl);
+    if (this.destroyed) return false;
+
+    // Match the earliest pending playback with this URL.
+    const request = Array.from(this.pendingRequests).find(
+      (item) => item.trackUrl === trackUrl
+    );
+
+    if (!request) return false;
+
+    request.cancelled = true;
+
+    if (this.currentPlayback?.request === request) {
+      this.currentPlayback.cancel();
+      return true;
+    }
+
+    // If the buffer is already loaded, only mark the waiting
+    // playback as cancelled; do not accidentally cancel another
+    // download using the same URL.
+    if (!request.loadSettled) {
+      this.taskQueue.cancel(trackUrl);
+    }
+
+    return true;
   }
 
-  /**
-   * Read current frequency data.
-   * The same Uint8Array is reused on each call.
-   */
-getFrequencyData(): Uint8Array {
-  this.analyser.getByteFrequencyData(
-    this.frequencyData as Uint8Array<ArrayBuffer>
-  );
-  return this.frequencyData;
-}
+  // Cancel current playback and all queued or pending tracks.
+  // The engine can be reused after this method.
+  stopAll(): void {
+    if (this.destroyed) return;
 
-  private playBuffer(buffer: AudioBuffer): Promise<void> {
+    this.cancelPendingWork();
+  }
+
+  private cancelPendingWork(): void {
+    for (const request of this.pendingRequests) {
+      request.cancelled = true;
+    }
+
+    this.taskQueue.cancelAll();
+    this.currentPlayback?.cancel();
+  }
+
+  getFrequencyData(): Uint8Array<ArrayBuffer> {
+    this.analyser.getByteFrequencyData(this.frequencyData);
+    return this.frequencyData;
+  }
+
+  async destroy(): Promise<void> {
+    if (this.destroyed) return;
+
+    this.destroyed = true;
+
+    this.cancelPendingWork();
+    this.taskQueue.destroy();
+
+    try {
+      this.analyser.disconnect();
+    } catch {
+      // The analyser may already be disconnected.
+    }
+
+    if (this.audioContext.state !== "closed") {
+      try {
+        await this.audioContext.close();
+      } catch {
+        // The context may already be closing.
+      }
+    }
+  }
+
+  private playBuffer(
+    buffer: AudioBuffer,
+    request: PlaybackRequest
+  ): Promise<void> {
+    if (this.destroyed || request.cancelled) {
+      return Promise.reject(createAbortError());
+    }
+
     return new Promise<void>((resolve, reject) => {
-      // Web Audio source nodes can only be started once.
+      // Every playback receives a new source node.
       const source = this.audioContext.createBufferSource();
 
       source.buffer = buffer;
       source.connect(this.analyser);
 
-      this.currentSource = source;
-
-      let finished = false;
+      let settled = false;
 
       const cleanup = (): void => {
-        if (finished) return;
-        finished = true;
+        if (settled) return;
 
+        settled = true;
+
+        // Remove the callback before stopping to avoid re-entry.
         source.onended = null;
+
+        try {
+          source.stop();
+        } catch {
+          // The source might not have started or may have ended.
+        }
 
         try {
           source.disconnect();
         } catch {
-          // The node may already be disconnected.
+          // The source may already be disconnected.
         }
 
-        if (this.currentSource === source) {
-          this.currentSource = null;
+        // Release the source's reference to the decoded audio.
+        source.buffer = null;
+
+        if (this.currentPlayback?.source === source) {
+          this.currentPlayback = null;
         }
       };
 
-      source.onended = () => {
+      const finish = (error?: unknown): void => {
+        if (settled) return;
+
         cleanup();
 
-        // Resolving allows the next track to begin.
-        resolve();
+        if (error !== undefined) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      };
+
+      const cancel = (): void => {
+        finish(createAbortError());
+      };
+
+      source.onended = () => finish();
+
+      this.currentPlayback = {
+        request,
+        source,
+        cancel,
       };
 
       try {
         source.start(0);
       } catch (error: unknown) {
-        cleanup();
-        reject(error);
+        finish(error);
       }
     });
   }

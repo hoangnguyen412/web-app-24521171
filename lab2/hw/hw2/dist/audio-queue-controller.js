@@ -7,92 +7,105 @@ export class AudioTaskQueue {
         this.isProcessing = false;
         this.activeController = null;
         this.activeTask = null;
-        // Reuse one AudioContext for this queue.
-        // T-04 can pass in its shared AudioContext.
-        this.audioContext = audioContext ?? null;
+        this.destroyed = false;
+        this.ownedAudioContext = null;
+        this.sharedAudioContext = audioContext ?? null;
     }
-    async enqueue(trackUrl) {
-        const controller = new AbortController();
+    enqueue(trackUrl) {
+        if (this.destroyed) {
+            return Promise.reject(createAbortError());
+        }
         return new Promise((resolve, reject) => {
             this.queue.push({
                 trackUrl,
-                controller,
+                controller: new AbortController(),
                 resolve,
                 reject,
             });
             void this.processNext();
         });
     }
-    /**
-     * Cancel the active task with this URL, or the first
-     * queued task with this URL if none is active.
-     * Returns false if no matching task is pending.
-     */
     cancel(trackUrl) {
-        // Cancel the active download/decode task first.
-        if (this.activeTask?.trackUrl === trackUrl) {
-            if (this.activeController?.signal.aborted) {
-                return false;
-            }
-            this.activeController?.abort();
+        if (this.destroyed)
+            return false;
+        if (this.activeTask?.trackUrl === trackUrl &&
+            this.activeController &&
+            !this.activeController.signal.aborted) {
+            this.activeController.abort();
             return true;
         }
-        // A queued task has not started downloading yet.
         const index = this.queue.findIndex((task) => task.trackUrl === trackUrl);
-        if (index === -1) {
+        if (index === -1)
             return false;
-        }
         const [task] = this.queue.splice(index, 1);
-        if (!task) {
+        if (!task)
             return false;
-        }
         task.controller.abort();
         task.reject(createAbortError());
         return true;
     }
+    cancelAll() {
+        // Abort the currently loading or decoding task.
+        this.activeController?.abort();
+        // Reject and remove all tasks that have not started.
+        for (const task of this.queue.splice(0)) {
+            task.controller.abort();
+            task.reject(createAbortError());
+        }
+    }
+    destroy() {
+        if (this.destroyed)
+            return;
+        this.destroyed = true;
+        this.cancelAll();
+        // Do not close a context owned by AudioEngine.
+        if (this.ownedAudioContext &&
+            this.ownedAudioContext.state !== "closed") {
+            void this.ownedAudioContext.close().catch(() => undefined);
+        }
+        this.ownedAudioContext = null;
+    }
     getAudioContext() {
-        if (!this.audioContext) {
+        if (this.sharedAudioContext) {
+            return this.sharedAudioContext;
+        }
+        if (!this.ownedAudioContext) {
             if (typeof AudioContext === "undefined") {
                 throw new Error("Web Audio API is not supported.");
             }
-            this.audioContext = new AudioContext();
+            this.ownedAudioContext = new AudioContext();
         }
-        return this.audioContext;
+        return this.ownedAudioContext;
     }
     async loadAudioBuffer(trackUrl, signal) {
-        if (signal.aborted) {
+        if (signal.aborted)
             throw createAbortError();
-        }
-        // 1. Download with task-specific cancellation.
         const response = await fetch(trackUrl, { signal });
         if (!response.ok) {
-            throw new Error(`Audio download failed: HTTP ${response.status} ${response.statusText}`);
+            throw new Error(`Audio download failed: HTTP ${response.status}`);
         }
         const audioData = await response.arrayBuffer();
-        if (signal.aborted) {
+        if (signal.aborted)
+            throw createAbortError();
+        const buffer = await this
+            .getAudioContext()
+            .decodeAudioData(audioData);
+        // decodeAudioData cannot be cancelled directly.
+        // Discard the decoded result if cancellation occurred meanwhile.
+        if (signal.aborted || this.destroyed) {
             throw createAbortError();
         }
-        // 2. Decode the downloaded audio.
-        const context = this.getAudioContext();
-        const audioBuffer = await context.decodeAudioData(audioData);
-        // decodeAudioData() has no AbortSignal parameter.
-        // Discard its result if the task was cancelled meanwhile.
-        if (signal.aborted) {
-            throw createAbortError();
-        }
-        return audioBuffer;
+        return buffer;
     }
     async processNext() {
-        if (this.isProcessing) {
+        if (this.isProcessing || this.destroyed)
             return;
-        }
         this.isProcessing = true;
         try {
-            while (this.queue.length > 0) {
+            while (this.queue.length > 0 && !this.destroyed) {
                 const task = this.queue.shift();
-                if (!task) {
+                if (!task)
                     continue;
-                }
                 if (task.controller.signal.aborted) {
                     task.reject(createAbortError());
                     continue;
@@ -101,13 +114,13 @@ export class AudioTaskQueue {
                 this.activeController = task.controller;
                 try {
                     const buffer = await this.loadAudioBuffer(task.trackUrl, task.controller.signal);
-                    if (task.controller.signal.aborted) {
+                    if (task.controller.signal.aborted || this.destroyed) {
                         throw createAbortError();
                     }
                     task.resolve(buffer);
                 }
                 catch (error) {
-                    // Reject this task only. Continue with the next task.
+                    // A failed task must not stop the remaining queue.
                     task.reject(error);
                 }
                 finally {
@@ -124,8 +137,7 @@ export class AudioTaskQueue {
             this.activeTask = null;
             this.activeController = null;
             this.isProcessing = false;
-            // Do not leave queued work stranded.
-            if (this.queue.length > 0) {
+            if (!this.destroyed && this.queue.length > 0) {
                 void this.processNext();
             }
         }

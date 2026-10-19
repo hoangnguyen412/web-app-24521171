@@ -8,12 +8,13 @@ export class AudioVisualizer {
   private frameId: number | null = null;
   private isRunning = false;
   private destroyed = false;
+  private resizeListenerAttached = false;
 
   private readonly handleResize = (): void => {
     this.resizeCanvas();
   };
 
-  // Reuse the same callback; do not allocate one per frame.
+  // Reuse the same callback and the engine's frequency array.
   private readonly drawFrame = (): void => {
     this.frameId = null;
 
@@ -21,8 +22,6 @@ export class AudioVisualizer {
 
     const width = this.canvas.width;
     const height = this.canvas.height;
-
-    // AudioEngine reuses its frequency data array.
     const data = this.engine.getFrequencyData();
 
     this.context.fillStyle = "#0b1220";
@@ -45,7 +44,6 @@ export class AudioVisualizer {
       );
     }
 
-    // Schedule the next frame.
     this.frameId = requestAnimationFrame(this.drawFrame);
   };
 
@@ -88,6 +86,8 @@ export class AudioVisualizer {
     this.resizeCanvas();
 
     window.addEventListener("resize", this.handleResize);
+    this.resizeListenerAttached = true;
+
     this.frameId = requestAnimationFrame(this.drawFrame);
   }
 
@@ -99,7 +99,10 @@ export class AudioVisualizer {
       this.frameId = null;
     }
 
-    window.removeEventListener("resize", this.handleResize);
+    if (this.resizeListenerAttached) {
+      window.removeEventListener("resize", this.handleResize);
+      this.resizeListenerAttached = false;
+    }
 
     this.context.clearRect(
       0,
