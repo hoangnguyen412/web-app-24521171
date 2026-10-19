@@ -1,3 +1,4 @@
+
 import { AudioEngine } from "./audio-engine.js";
 import { AudioVisualizer } from "./visualizer.js";
 
@@ -14,39 +15,64 @@ interface QueueEntry {
   status: TrackStatus;
 }
 
-const trackUrlInput =
-  document.querySelector<HTMLInputElement>("#track-url");
+type PlaybackResult =
+  | { success: true }
+  | { success: false; error: unknown };
 
-const playButton =
-  document.querySelector<HTMLButtonElement>("#play-track");
-
-const stopButton =
-  document.querySelector<HTMLButtonElement>("#stop-playback");
-
-const status =
-  document.querySelector<HTMLElement>("#playback-status");
-
-const canvas =
-  document.querySelector<HTMLCanvasElement>("#audio-visualizer");
-
-const queueList =
-  document.querySelector<HTMLOListElement>("#track-queue");
+const audioForm = document.querySelector<HTMLFormElement>("#audio-form");
+const trackUrlInput = document.querySelector<HTMLInputElement>("#track-url");
+const stopButton = document.querySelector<HTMLButtonElement>("#stop-playback");
+const statusElement = document.querySelector<HTMLElement>("#playback-status");
+const canvas = document.querySelector<HTMLCanvasElement>("#audio-visualizer");
+const queueList = document.querySelector<HTMLOListElement>("#track-queue");
 
 let engine: AudioEngine | null = null;
 let visualizer: AudioVisualizer | null = null;
 let nextTrackId = 1;
 let activeRequests = 0;
 let disposed = false;
-
-// UI playback chain mirrors the engine's playback order.
 let uiPlaybackChain: Promise<void> = Promise.resolve();
 
 const tracks: QueueEntry[] = [];
 
+function setStatus(message: string): void {
+  if (statusElement) {
+    statusElement.textContent = message;
+  }
+}
+
+function isCancelled(entry: QueueEntry): boolean {
+  return entry.status === "Cancelled";
+}
+
+function renderQueue(): void {
+  if (!queueList) {
+    return;
+  }
+
+  const items = tracks.map((track) => {
+    const item = document.createElement("li");
+    item.className = "track-item";
+
+    const url = document.createElement("span");
+    url.className = "track-url";
+    url.textContent = track.url;
+
+    const status = document.createElement("span");
+    status.className = `track-status status-${track.status.toLowerCase()}`;
+    status.textContent = track.status;
+
+    item.append(url, status);
+    return item;
+  });
+
+  queueList.replaceChildren(...items);
+}
+
 function getAudioEngine(): AudioEngine {
   if (!engine) {
     if (!canvas) {
-      throw new Error("Audio visualizer canvas was not found.");
+      throw new Error("The audio visualizer canvas was not found.");
     }
 
     engine = new AudioEngine(512);
@@ -56,53 +82,42 @@ function getAudioEngine(): AudioEngine {
   return engine;
 }
 
-// Display every submitted track in insertion/FIFO order.
-function renderQueue(): void {
-  if (!queueList) return;
-
-  const fragment = document.createDocumentFragment();
-
-  for (const track of tracks) {
-    const item = document.createElement("li");
-
-    const number = document.createElement("strong");
-    number.textContent = `#${track.id}`;
-
-    const url = document.createElement("span");
-    url.className = "track-url";
-    url.textContent = track.url;
-
-    const badge = document.createElement("span");
-    badge.className = `track-status status-${track.status.toLowerCase()}`;
-    badge.textContent = track.status;
-
-    item.append(
-      number,
-      url,
-      badge
-    );
-
-    fragment.appendChild(item);
-  }
-
-  queueList.replaceChildren(fragment);
-}
-
-function setStatus(message: string): void {
-  if (!disposed && status) {
-    status.textContent = message;
-  }
-}
-
 function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError";
+  if (error instanceof DOMException) {
+    return error.name === "AbortError";
+  }
+
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
 }
 
-function handlePlayClick(): void {
-  const trackUrl = trackUrlInput?.value.trim();
+function enqueueTrack(rawUrl: string): void {
+  if (disposed) {
+    return;
+  }
 
-  if (!trackUrl) {
-    setStatus("Enter an audio URL first.");
+  const url = rawUrl.trim();
+
+  if (!url) {
+    setStatus("Enter a direct audio file URL.");
+    trackUrlInput?.focus();
+    return;
+  }
+
+  try {
+    const parsedUrl = new URL(url);
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      setStatus("Use a valid HTTP or HTTPS audio URL.");
+      return;
+    }
+  } catch {
+    setStatus("Enter a valid audio URL.");
+    trackUrlInput?.focus();
     return;
   }
 
@@ -110,85 +125,94 @@ function handlePlayClick(): void {
 
   try {
     audioEngine = getAudioEngine();
-  } catch (error: unknown) {
+  } catch (error) {
     setStatus(
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error
+        ? error.message
+        : "Unable to initialize audio.",
     );
     return;
   }
 
   const entry: QueueEntry = {
     id: nextTrackId++,
-    url: trackUrl,
+    url,
     status: "Queued",
   };
 
   tracks.push(entry);
   renderQueue();
+  setStatus("Track added to the FIFO queue.");
 
   activeRequests += 1;
   visualizer?.start();
 
-  setStatus(`Added track #${entry.id} to the FIFO queue.`);
-
-  // Submit immediately so the engine can load tracks in FIFO order.
-  const playbackPromise = audioEngine.enqueueAndPlay(trackUrl);
+  const playbackResult: Promise<PlaybackResult> =
+    audioEngine.enqueueAndPlay(url).then(
+      () => ({ success: true }),
+      (error: unknown) => ({ success: false, error }),
+    );
 
   const uiTask = uiPlaybackChain.then(async () => {
     try {
-      if (entry.status !== "Cancelled") {
-        entry.status = "Playing";
-        renderQueue();
-        setStatus(`Playing track #${entry.id}.`);
+      if (isCancelled(entry)) {
+        return;
       }
 
-      await playbackPromise;
+      entry.status = "Playing";
+      renderQueue();
 
-      if (!disposed && entry.status !== "Cancelled") {
+      const result = await playbackResult;
+
+      if (isCancelled(entry)) {
+        return;
+      }
+
+      if (result.success) {
         entry.status = "Completed";
-        setStatus(`Track #${entry.id} completed.`);
+      } else if (isAbortError(result.error)) {
+        entry.status = "Cancelled";
+      } else {
+        entry.status = "Failed";
+        console.error("Audio track failed:", result.error);
       }
-    } catch (error: unknown) {
-      if (!disposed) {
-        if (isAbortError(error) || entry.status === "Cancelled") {
-          entry.status = "Cancelled";
-          setStatus(`Track #${entry.id} cancelled.`);
-        } else {
-          entry.status = "Failed";
 
-          const message =
-            error instanceof Error ? error.message : String(error);
+      renderQueue();
 
-          setStatus(`Track #${entry.id} failed: ${message}`);
-        }
+      if (entry.status === "Failed") {
+        setStatus("A track failed to load or play. The queue can continue.");
       }
     } finally {
-      activeRequests -= 1;
+      activeRequests = Math.max(0, activeRequests - 1);
+      renderQueue();
 
-      if (!disposed) {
-        renderQueue();
+      if (activeRequests === 0) {
+        visualizer?.stop();
 
-        if (activeRequests === 0) {
-          visualizer?.stop();
+        if (!disposed) {
+          setStatus("Queue finished.");
         }
       }
     }
   });
 
-  // Keep the UI chain alive even if an unexpected UI error occurs.
   uiPlaybackChain = uiTask.catch((error: unknown) => {
     console.error("Queue UI error:", error);
+    setStatus("An unexpected queue error occurred.");
   });
+}
+
+function handleFormSubmit(event: SubmitEvent): void {
+  event.preventDefault();
+  enqueueTrack(trackUrlInput?.value ?? "");
 }
 
 function handleStopClick(): void {
   if (!engine) {
-    visualizer?.stop();
-    setStatus("There are no tracks to stop.");
+    setStatus("There is no active playback to stop.");
     return;
   }
 
-  // stopAll() stops current playback and cancels pending tasks.
   engine.stopAll();
   visualizer?.stop();
 
@@ -203,28 +227,20 @@ function handleStopClick(): void {
 }
 
 function handlePageHide(): void {
-  if (disposed) return;
+  if (disposed) {
+    return;
+  }
 
   disposed = true;
 
-  playButton?.removeEventListener("click", handlePlayClick);
+  audioForm?.removeEventListener("submit", handleFormSubmit);
   stopButton?.removeEventListener("click", handleStopClick);
   window.removeEventListener("pagehide", handlePageHide);
 
   visualizer?.destroy();
-  visualizer = null;
-
-  const oldEngine = engine;
-  engine = null;
-
-  if (oldEngine) {
-    void oldEngine.destroy();
-  }
+  engine?.destroy();
 }
 
-playButton?.addEventListener("click", handlePlayClick);
+audioForm?.addEventListener("submit", handleFormSubmit);
 stopButton?.addEventListener("click", handleStopClick);
-
-window.addEventListener("pagehide", handlePageHide, {
-  once: true,
-});
+window.addEventListener("pagehide", handlePageHide);

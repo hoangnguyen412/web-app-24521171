@@ -24,13 +24,13 @@ export class AudioVisualizer {
     const height = this.canvas.height;
     const data = this.engine.getFrequencyData();
 
-    this.context.fillStyle = "#0b1220";
+    this.context.fillStyle = "#f5f0ff";
     this.context.fillRect(0, 0, width, height);
 
     const barStep = width / data.length;
     const barWidth = Math.max(1, barStep * 0.7);
 
-    this.context.fillStyle = "#22c55e";
+    this.context.fillStyle = "#9b83d5";
 
     for (let i = 0; i < data.length; i += 1) {
       const value = data[i] ?? 0;

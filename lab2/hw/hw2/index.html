@@ -1,198 +1,276 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:," />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Audio Task Queue</title>
 
-    <title>Concurrent FIFO Audio Visualizer</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+      color: #352e49;
+      background: #faf8ff;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+      --lavender: #eee7ff;
+      --lavender-dark: #9b83d5;
+      --pink: #ffe8f0;
+      --mint: #e0f5eb;
+      --border: #e6def8;
+      --muted: #766e8e;
+    }
 
-    <style>
-      :root {
-        font-family: Arial, Helvetica, sans-serif;
-        color: #172033;
-        background: #f8fafc;
-      }
+    * {
+      box-sizing: border-box;
+    }
 
-      * {
-        box-sizing: border-box;
-      }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 36px 20px;
+      background:
+        radial-gradient(ellipse at top left, #f1eaff 0, transparent 42%),
+        radial-gradient(ellipse at top right, #fff0f5 0, transparent 35%),
+        #faf8ff;
+    }
 
+    .container {
+      width: min(100%, 1120px);
+      margin: 0 auto;
+      display: grid;
+      gap: 24px;
+    }
+
+    .page-header {
+      padding: 8px 4px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(28px, 4vw, 38px);
+      color: #352e49;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 23px;
+      color: #352e49;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .card {
+      padding: 28px;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      box-shadow: 0 12px 35px rgba(93, 75, 135, 0.07);
+    }
+
+    .description {
+      margin: 0 0 20px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    input[type="url"] {
+      flex: 1 1 360px;
+      min-width: 0;
+      padding: 13px 16px;
+      border: 1px solid #ded5f3;
+      border-radius: 14px;
+      background: #fff;
+      color: #352e49;
+      font: inherit;
+    }
+
+    input[type="url"]:focus-visible,
+    button:focus-visible {
+      outline: 3px solid #b9a7ef;
+      outline-offset: 3px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 12px 18px;
+      font: inherit;
+      font-weight: 650;
+      cursor: pointer;
+      transition: transform 120ms ease, filter 120ms ease;
+    }
+
+    button:hover {
+      filter: brightness(0.98);
+      transform: translateY(-1px);
+    }
+
+    #play-track {
+      color: #443568;
+      background: var(--lavender);
+    }
+
+    #stop-playback {
+      color: #8d3d5c;
+      background: var(--pink);
+    }
+
+    .status-message {
+      margin: 20px 0 0;
+      padding: 15px 16px;
+      border: 1px solid #e6dcff;
+      border-radius: 15px;
+      background: #f5f0ff;
+      color: #514376;
+      overflow-wrap: anywhere;
+    }
+
+    .track-queue {
+      margin: 0;
+      padding-left: 28px;
+    }
+
+    .track-item {
+      padding: 10px 4px;
+      line-height: 1.7;
+    }
+
+    .track-url {
+      overflow-wrap: anywhere;
+      color: #51476b;
+    }
+
+    .track-status {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 8px;
+      padding: 3px 11px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-queued {
+      color: #80570a;
+      background: #fff2c9;
+      border: 1px solid #f3dc91;
+    }
+
+    .status-playing {
+      color: #245e9e;
+      background: #e1efff;
+      border: 1px solid #c5ddff;
+    }
+
+    .status-completed {
+      color: #216746;
+      background: #e0f5eb;
+      border: 1px solid #c5e8d6;
+    }
+
+    .status-cancelled,
+    .status-failed {
+      color: #93445d;
+      background: #ffe8f0;
+      border: 1px solid #f6cbd9;
+    }
+
+    #audio-visualizer {
+      display: block;
+      width: 100%;
+      height: 280px;
+      border: 1px solid #e5dcf6;
+      border-radius: 18px;
+      background: #f5f0ff;
+    }
+
+    @media (max-width: 600px) {
       body {
-        max-width: 1000px;
-        margin: 0 auto;
-        padding: 24px;
+        padding: 20px 12px;
       }
 
-      h1,
-      h2 {
-        line-height: 1.3;
+      .card {
+        padding: 20px;
+        border-radius: 20px;
       }
 
-      label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
+      .input-row {
+        flex-direction: column;
       }
 
-      input {
-        width: min(100%, 520px);
-        min-height: 44px;
-        padding: 10px;
-        font: inherit;
-      }
-
-      button {
-        min-height: 44px;
-        margin: 12px 8px 12px 0;
-        padding: 10px 16px;
-        font: inherit;
-        cursor: pointer;
-      }
-
-      button:focus-visible,
-      input:focus-visible {
-        outline: 3px solid #005fcc;
-        outline-offset: 3px;
-      }
-
-      #playback-status {
-        min-height: 24px;
-        line-height: 1.5;
-      }
-
-      #track-queue {
-        display: grid;
-        gap: 10px;
-        padding-left: 32px;
-      }
-
-      #track-queue li {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
-        align-items: start;
-        gap: 12px;
-        padding: 12px;
-        background: #ffffff;
-        border: 1px solid #cbd5e1;
-        border-radius: 8px;
-      }
-
-      .track-url {
-        overflow-wrap: anywhere;
-        line-height: 1.5;
-      }
-
-      .track-status {
-        padding: 4px 8px;
-        border: 1px solid #64748b;
-        border-radius: 6px;
-        font-size: 0.85rem;
-        font-weight: 600;
-      }
-
-      .status-queued {
-        color: #854d0e;
-        background: #fef9c3;
-      }
-
-      .status-playing {
-        color: #075985;
-        background: #e0f2fe;
-      }
-
-      .status-completed {
-        color: #166534;
-        background: #dcfce7;
-      }
-
-      .status-cancelled {
-        color: #475569;
-        background: #e2e8f0;
-      }
-
-      .status-failed {
-        color: #991b1b;
-        background: #fee2e2;
+      .input-row button {
+        width: 100%;
       }
 
       #audio-visualizer {
-        display: block;
-        width: 100%;
-        height: 240px;
-        background: #0b1220;
-        border-radius: 8px;
+        height: 220px;
       }
+    }
 
-      @media (max-width: 600px) {
-        body {
-          padding: 16px;
-        }
-
-        #track-queue li {
-          grid-template-columns: auto minmax(0, 1fr);
-        }
-
-        .track-status {
-          grid-column: 2;
-          justify-self: start;
-        }
+    @media (prefers-reduced-motion: reduce) {
+      button {
+        transition: none;
       }
-    </style>
-  </head>
+    }
+  </style>
+</head>
 
-  <body>
-    <main>
-      <h1>Concurrent FIFO Audio Visualizer</h1>
+<body>
+  <main class="container">
+    <header class="page-header">
+      <h1>Audio Task Queue</h1>
+      <p>FIFO audio playback with cancellation and a live frequency visualizer.</p>
+    </header>
 
-      <section aria-labelledby="player-heading">
-        <h2 id="player-heading">Audio Queue</h2>
+    <section class="card" aria-labelledby="queue-controls-title">
+      <h2 id="queue-controls-title">Add Audio Track</h2>
+      <p class="description">
+        Enter a direct audio file URL. Tracks are processed in FIFO order.
+      </p>
 
-        <label for="track-url">Audio URL</label>
-
+      <form id="audio-form" class="input-row">
         <input
           id="track-url"
           type="url"
-          placeholder="Enter a direct audio URL"
-          autocomplete="url"
+          placeholder="https://example.com/audio.mp3"
+          aria-label="Audio file URL"
+          required
         />
+        <button id="play-track" type="submit">Enqueue Track</button>
+        <button id="stop-playback" type="button">Stop All</button>
+      </form>
 
-        <div>
-          <button id="play-track" type="button">
-            Enqueue and Play
-          </button>
+      <p id="playback-status" class="status-message" role="status" aria-live="polite">
+        Enter an audio URL to get started.
+      </p>
+    </section>
 
-          <button id="stop-playback" type="button">
-            Stop Playback
-          </button>
-        </div>
+    <section class="card" aria-labelledby="queue-title">
+      <h2 id="queue-title">Tracks in FIFO Order</h2>
+      <p class="description">Tracks appear in the order they were added.</p>
+      <ol id="track-queue" class="track-queue" aria-live="polite"></ol>
+    </section>
 
-        <p id="playback-status" role="status" aria-live="polite">
-          Ready.
-        </p>
-      </section>
+    <section class="card" aria-labelledby="visualizer-title">
+      <h2 id="visualizer-title">Live Frequency Visualizer</h2>
+      <p class="description">Watch the bars react to the currently playing audio.</p>
+      <canvas
+        id="audio-visualizer"
+        aria-label="Live audio frequency visualization"
+      ></canvas>
+    </section>
+  </main>
 
-      <section aria-labelledby="queue-heading">
-        <h2 id="queue-heading">Tracks in FIFO Order</h2>
-
-        <ol id="track-queue" aria-label="Tracks in playback order"></ol>
-      </section>
-
-      <section aria-labelledby="visualizer-heading">
-        <h2 id="visualizer-heading">Live Frequency Visualizer</h2>
-
-        <canvas
-          id="audio-visualizer"
-          width="800"
-          height="240"
-          role="img"
-          aria-label="Live audio frequency spectrum visualizer"
-        >
-          Audio frequency visualizer.
-        </canvas>
-      </section>
-    </main>
-
-    <script type="module" src="./dist/main.js"></script>
-  </body>
+  <script type="module" src="./dist/main.js"></script>
+</body>
 </html>
