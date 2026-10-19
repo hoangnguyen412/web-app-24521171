@@ -2,29 +2,28 @@ export class AudioVisualizer {
     constructor(canvas, engine) {
         this.frameId = null;
         this.isRunning = false;
+        this.destroyed = false;
         this.handleResize = () => {
             this.resizeCanvas();
         };
-        // Reuse this callback rather than creating a new one per frame.
+        // Reuse the same callback; do not allocate one per frame.
         this.drawFrame = () => {
-            if (!this.isRunning)
+            this.frameId = null;
+            if (!this.isRunning || this.destroyed)
                 return;
             const width = this.canvas.width;
             const height = this.canvas.height;
-            // AudioEngine reuses the same frequency data array.
-            const frequencyData = this.engine.getFrequencyData();
-            this.context.clearRect(0, 0, width, height);
+            // AudioEngine reuses its frequency data array.
+            const data = this.engine.getFrequencyData();
             this.context.fillStyle = "#0b1220";
             this.context.fillRect(0, 0, width, height);
-            const barStep = width / frequencyData.length;
+            const barStep = width / data.length;
             const barWidth = Math.max(1, barStep * 0.7);
             this.context.fillStyle = "#22c55e";
-            for (let index = 0; index < frequencyData.length; index += 1) {
-                const value = frequencyData[index] ?? 0;
+            for (let i = 0; i < data.length; i += 1) {
+                const value = data[i] ?? 0;
                 const barHeight = (value / 255) * height;
-                const x = index * barStep;
-                const y = height - barHeight;
-                this.context.fillRect(x, y, barWidth, barHeight);
+                this.context.fillRect(i * barStep, height - barHeight, barWidth, barHeight);
             }
             // Schedule the next frame.
             this.frameId = requestAnimationFrame(this.drawFrame);
@@ -39,19 +38,21 @@ export class AudioVisualizer {
         this.resizeCanvas();
     }
     resizeCanvas() {
-        const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
-        const width = Math.floor(this.canvas.clientWidth * pixelRatio);
-        const height = Math.floor(this.canvas.clientHeight * pixelRatio);
-        if (width > 0 && height > 0) {
-            if (this.canvas.width !== width ||
-                this.canvas.height !== height) {
-                this.canvas.width = width;
-                this.canvas.height = height;
-            }
+        if (this.destroyed)
+            return;
+        const ratio = Math.max(1, window.devicePixelRatio || 1);
+        const width = Math.floor(this.canvas.clientWidth * ratio);
+        const height = Math.floor(this.canvas.clientHeight * ratio);
+        if (width <= 0 || height <= 0)
+            return;
+        if (this.canvas.width !== width ||
+            this.canvas.height !== height) {
+            this.canvas.width = width;
+            this.canvas.height = height;
         }
     }
     start() {
-        if (this.isRunning)
+        if (this.isRunning || this.destroyed)
             return;
         this.isRunning = true;
         this.resizeCanvas();
@@ -59,8 +60,6 @@ export class AudioVisualizer {
         this.frameId = requestAnimationFrame(this.drawFrame);
     }
     stop() {
-        if (!this.isRunning)
-            return;
         this.isRunning = false;
         if (this.frameId !== null) {
             cancelAnimationFrame(this.frameId);
@@ -70,6 +69,9 @@ export class AudioVisualizer {
         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
     destroy() {
+        if (this.destroyed)
+            return;
         this.stop();
+        this.destroyed = true;
     }
 }

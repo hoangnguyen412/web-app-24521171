@@ -30,14 +30,13 @@ function getAudioEngine(): AudioEngine {
   return engine;
 }
 
-playButton?.addEventListener("click", async () => {
+async function handlePlayClick(): Promise<void> {
   const trackUrl = trackUrlInput?.value.trim();
 
   if (!trackUrl) {
     if (status) {
       status.textContent = "Enter an audio URL first.";
     }
-
     return;
   }
 
@@ -67,9 +66,13 @@ playButton?.addEventListener("click", async () => {
   } finally {
     activeRequests -= 1;
 
-    // Stop rendering when every queued playback request has settled.
+    // Stop rendering after all queued playback requests settle.
     if (activeRequests === 0) {
       visualizer?.stop();
     }
   }
+}
+
+playButton?.addEventListener("click", () => {
+  void handlePlayClick();
 });
