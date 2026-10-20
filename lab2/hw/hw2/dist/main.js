@@ -1,9 +1,9 @@
 import { AudioEngine } from "./audio-engine.js";
 import { AudioVisualizer } from "./visualizer.js";
+const audioForm = document.querySelector("#audio-form");
 const trackUrlInput = document.querySelector("#track-url");
-const playButton = document.querySelector("#play-track");
 const stopButton = document.querySelector("#stop-playback");
-const status = document.querySelector("#playback-status");
+const statusElement = document.querySelector("#playback-status");
 const canvas = document.querySelector("#audio-visualizer");
 const queueList = document.querySelector("#track-queue");
 let engine = null;
@@ -11,51 +11,73 @@ let visualizer = null;
 let nextTrackId = 1;
 let activeRequests = 0;
 let disposed = false;
-// UI playback chain mirrors the engine's playback order.
 let uiPlaybackChain = Promise.resolve();
 const tracks = [];
+function setStatus(message) {
+    if (statusElement) {
+        statusElement.textContent = message;
+    }
+}
+function isCancelled(entry) {
+    return entry.status === "Cancelled";
+}
+function renderQueue() {
+    if (!queueList) {
+        return;
+    }
+    const items = tracks.map((track) => {
+        const item = document.createElement("li");
+        item.className = "track-item";
+        const url = document.createElement("span");
+        url.className = "track-url";
+        url.textContent = track.url;
+        const status = document.createElement("span");
+        status.className = `track-status status-${track.status.toLowerCase()}`;
+        status.textContent = track.status;
+        item.append(url, status);
+        return item;
+    });
+    queueList.replaceChildren(...items);
+}
 function getAudioEngine() {
     if (!engine) {
         if (!canvas) {
-            throw new Error("Audio visualizer canvas was not found.");
+            throw new Error("The audio visualizer canvas was not found.");
         }
         engine = new AudioEngine(512);
         visualizer = new AudioVisualizer(canvas, engine);
     }
     return engine;
 }
-// Display every submitted track in insertion/FIFO order.
-function renderQueue() {
-    if (!queueList)
-        return;
-    const fragment = document.createDocumentFragment();
-    for (const track of tracks) {
-        const item = document.createElement("li");
-        const number = document.createElement("strong");
-        number.textContent = `#${track.id}`;
-        const url = document.createElement("span");
-        url.className = "track-url";
-        url.textContent = track.url;
-        const badge = document.createElement("span");
-        badge.className = `track-status status-${track.status.toLowerCase()}`;
-        badge.textContent = track.status;
-        item.append(number, url, badge);
-        fragment.appendChild(item);
-    }
-    queueList.replaceChildren(fragment);
-}
-function setStatus(message) {
-    if (!disposed && status) {
-        status.textContent = message;
-    }
-}
 function isAbortError(error) {
-    return error instanceof Error && error.name === "AbortError";
+    if (error instanceof DOMException) {
+        return error.name === "AbortError";
+    }
+    return (typeof error === "object" &&
+        error !== null &&
+        "name" in error &&
+        error.name === "AbortError");
 }
-function handlePlayClick() {
-    const trackUrl = trackUrlInput?.value.trim();
-    if (!trackUrl) {
-        setStatus("Enter an audio URL first.");
+function enqueueTrack(rawUrl) {
+    if (disposed) {
+        return;
+    }
+    const url = rawUrl.trim();
+    if (!url) {
+        setStatus("Enter a direct audio file URL.");
+        trackUrlInput?.focus();
+        return;
+    }
+    try {
+        const parsedUrl = new URL(url);
+        if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+            setStatus("Use a valid HTTP or HTTPS audio URL.");
+            return;
+        }
+    }
+    catch {
+        setStatus("Enter a valid audio URL.");
+        trackUrlInput?.focus();
         return;
     }
     let audioEngine;
@@ -63,69 +85,73 @@ function handlePlayClick() {
         audioEngine = getAudioEngine();
     }
     catch (error) {
-        setStatus(error instanceof Error ? error.message : String(error));
+        setStatus(error instanceof Error
+            ? error.message
+            : "Unable to initialize audio.");
         return;
     }
     const entry = {
         id: nextTrackId++,
-        url: trackUrl,
+        url,
         status: "Queued",
     };
     tracks.push(entry);
     renderQueue();
+    setStatus("Track added to the FIFO queue.");
     activeRequests += 1;
     visualizer?.start();
-    setStatus(`Added track #${entry.id} to the FIFO queue.`);
-    // Submit immediately so the engine can load tracks in FIFO order.
-    const playbackPromise = audioEngine.enqueueAndPlay(trackUrl);
+    const playbackResult = audioEngine.enqueueAndPlay(url).then(() => ({ success: true }), (error) => ({ success: false, error }));
     const uiTask = uiPlaybackChain.then(async () => {
         try {
-            if (entry.status !== "Cancelled") {
-                entry.status = "Playing";
-                renderQueue();
-                setStatus(`Playing track #${entry.id}.`);
+            if (isCancelled(entry)) {
+                return;
             }
-            await playbackPromise;
-            if (!disposed && entry.status !== "Cancelled") {
+            entry.status = "Playing";
+            renderQueue();
+            const result = await playbackResult;
+            if (isCancelled(entry)) {
+                return;
+            }
+            if (result.success) {
                 entry.status = "Completed";
-                setStatus(`Track #${entry.id} completed.`);
             }
-        }
-        catch (error) {
-            if (!disposed) {
-                if (isAbortError(error) || entry.status === "Cancelled") {
-                    entry.status = "Cancelled";
-                    setStatus(`Track #${entry.id} cancelled.`);
-                }
-                else {
-                    entry.status = "Failed";
-                    const message = error instanceof Error ? error.message : String(error);
-                    setStatus(`Track #${entry.id} failed: ${message}`);
-                }
+            else if (isAbortError(result.error)) {
+                entry.status = "Cancelled";
+            }
+            else {
+                entry.status = "Failed";
+                console.error("Audio track failed:", result.error);
+            }
+            renderQueue();
+            if (entry.status === "Failed") {
+                setStatus("A track failed to load or play. The queue can continue.");
             }
         }
         finally {
-            activeRequests -= 1;
-            if (!disposed) {
-                renderQueue();
-                if (activeRequests === 0) {
-                    visualizer?.stop();
+            activeRequests = Math.max(0, activeRequests - 1);
+            renderQueue();
+            if (activeRequests === 0) {
+                visualizer?.stop();
+                if (!disposed) {
+                    setStatus("Queue finished.");
                 }
             }
         }
     });
-    // Keep the UI chain alive even if an unexpected UI error occurs.
     uiPlaybackChain = uiTask.catch((error) => {
         console.error("Queue UI error:", error);
+        setStatus("An unexpected queue error occurred.");
     });
+}
+function handleFormSubmit(event) {
+    event.preventDefault();
+    enqueueTrack(trackUrlInput?.value ?? "");
 }
 function handleStopClick() {
     if (!engine) {
-        visualizer?.stop();
-        setStatus("There are no tracks to stop.");
+        setStatus("There is no active playback to stop.");
         return;
     }
-    // stopAll() stops current playback and cancels pending tasks.
     engine.stopAll();
     visualizer?.stop();
     for (const track of tracks) {
@@ -137,22 +163,16 @@ function handleStopClick() {
     setStatus("Playback stopped. Active and pending tracks cancelled.");
 }
 function handlePageHide() {
-    if (disposed)
+    if (disposed) {
         return;
+    }
     disposed = true;
-    playButton?.removeEventListener("click", handlePlayClick);
+    audioForm?.removeEventListener("submit", handleFormSubmit);
     stopButton?.removeEventListener("click", handleStopClick);
     window.removeEventListener("pagehide", handlePageHide);
     visualizer?.destroy();
-    visualizer = null;
-    const oldEngine = engine;
-    engine = null;
-    if (oldEngine) {
-        void oldEngine.destroy();
-    }
+    engine?.destroy();
 }
-playButton?.addEventListener("click", handlePlayClick);
+audioForm?.addEventListener("submit", handleFormSubmit);
 stopButton?.addEventListener("click", handleStopClick);
-window.addEventListener("pagehide", handlePageHide, {
-    once: true,
-});
+window.addEventListener("pagehide", handlePageHide);
