@@ -1,6 +1,8 @@
 import { createAntiDriftTimer } from "./anti-drift-timer.js";
 import { InventoryStateMachine } from "./inventory.js";
 import { CheckoutService } from "./checkout.js";
+const LOCK_DURATION_MS = 15000;
+const DEMO_LOCK_DURATION_MS = 60 * 60 * 1000;
 const flashSaleState = {
     product: {
         price: 1290000,
@@ -11,13 +13,39 @@ const flashSaleState = {
     reservationStatus: "Chưa giữ hàng",
     checkoutStatus: "Chưa thanh toán"
 };
-const inventoryStateMachine = new InventoryStateMachine(100);
-const checkoutService = new CheckoutService(inventoryStateMachine);
+// The sale deadline prevents new reservations after the countdown.
+const saleDeadline = Date.now() + flashSaleState.countdownMs;
+let saleEnded = false;
+function randomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+// Generate demo quantities on each page load.
+const demoAvailable = randomInt(30, 70);
+const demoReserved = randomInt(5, 20);
+const demoSold = randomInt(3, 15);
+const initialStock = demoAvailable + demoReserved + demoSold;
+// InventoryStateMachine is the single source of stock quantities.
+const inventory = new InventoryStateMachine(initialStock);
+const checkoutService = new CheckoutService(inventory);
+// Seed active reserved stock through real state transitions.
+const demoReservation = inventory.reserve(demoReserved, inventory.getSnapshot().version, DEMO_LOCK_DURATION_MS);
+if (!demoReservation.success) {
+    throw new Error(demoReservation.error.message);
+}
+// Seed sold stock through a real reservation and checkout.
+const demoSale = inventory.reserve(demoSold, inventory.getSnapshot().version, DEMO_LOCK_DURATION_MS);
+if (!demoSale.success) {
+    throw new Error(demoSale.error.message);
+}
+const demoCheckout = checkoutService.checkout(demoSale.data.id, inventory.getSnapshot().version);
+if (!demoCheckout.success) {
+    throw new Error(demoCheckout.error.message);
+}
 let activeReservationId = null;
 function getElement(id) {
     const element = document.getElementById(id);
     if (!element) {
-        throw new Error(`Missing required UI element: #${id}`);
+        throw new Error(`Missing UI element: #${id}`);
     }
     return element;
 }
@@ -29,27 +57,29 @@ function formatRemaining(ms) {
     const minutes = Math.floor(safeMs / 60000);
     const seconds = Math.floor((safeMs % 60000) / 1000);
     const milliseconds = safeMs % 1000;
-    return [
-        String(minutes).padStart(2, "0"),
-        String(seconds).padStart(2, "0")
-    ].join(":") + "." + String(milliseconds).padStart(3, "0");
+    return (`${String(minutes).padStart(2, "0")}:` +
+        `${String(seconds).padStart(2, "0")}.` +
+        `${String(milliseconds).padStart(3, "0")}`);
 }
-function renderFlashSaleView(inventory) {
+function renderFlashSaleView(snapshot) {
     const { product } = flashSaleState;
-    const soldPercent = inventory.initialStock > 0
-        ? (inventory.sold / inventory.initialStock) * 100
-        : 0;
     getElement("product-price").textContent = formatVND(product.price);
     getElement("product-old-price").textContent =
         formatVND(product.originalPrice);
     getElement("product-discount").textContent =
         `-${product.discountPercent}%`;
-    getElement("version").textContent = `VERSION ${inventory.version}`;
+    getElement("version").textContent = `VERSION ${snapshot.version}`;
     getElement("stock-summary").textContent =
-        `${inventory.available} / ${inventory.initialStock} sản phẩm còn có thể giữ`;
-    getElement("available-stock").textContent = String(inventory.available);
-    getElement("reserved-stock").textContent = String(inventory.reserved);
-    getElement("sold-stock").textContent = String(inventory.sold);
+        `${snapshot.available} / ${snapshot.initialStock} sản phẩm còn có thể giữ`;
+    getElement("available-stock").textContent =
+        String(snapshot.available);
+    getElement("reserved-stock").textContent =
+        String(snapshot.reserved);
+    getElement("sold-stock").textContent =
+        String(snapshot.sold);
+    const soldPercent = snapshot.initialStock > 0
+        ? (snapshot.sold / snapshot.initialStock) * 100
+        : 0;
     getElement("stock-progress-fill").style.width =
         `${Math.min(100, Math.max(0, soldPercent))}%`;
     getElement("stock-progress").setAttribute("aria-valuenow", String(Math.round(soldPercent)));
@@ -61,9 +91,13 @@ function renderFlashSaleView(inventory) {
 const reserveButton = getElement("reserve-button");
 const checkoutButton = getElement("checkout-button");
 function refreshView() {
-    const inventory = inventoryStateMachine.getSnapshot();
+    // Also check the deadline here in case a background tab delayed a frame.
+    if (Date.now() >= saleDeadline) {
+        saleEnded = true;
+    }
+    const snapshot = inventory.getSnapshot();
     const reservation = activeReservationId
-        ? inventoryStateMachine.getReservation(activeReservationId)
+        ? inventory.getReservation(activeReservationId)
         : undefined;
     if (reservation?.status === "reserved") {
         flashSaleState.reservationStatus = "Đang giữ hàng";
@@ -77,15 +111,28 @@ function refreshView() {
         flashSaleState.reservationStatus = "Đã xác nhận đơn";
         flashSaleState.checkoutStatus = "Thanh toán thành công";
     }
+    else if (saleEnded) {
+        flashSaleState.reservationStatus = "Flash sale đã kết thúc";
+    }
+    // Block new reservations once the sale ends.
     reserveButton.disabled =
-        inventory.available === 0 || reservation?.status === "reserved";
+        saleEnded ||
+            snapshot.available === 0 ||
+            reservation?.status === "reserved";
+    // An existing reservation can still be checked out while its lock is valid.
     checkoutButton.disabled = reservation?.status !== "reserved";
-    renderFlashSaleView(inventory);
+    renderFlashSaleView(snapshot);
 }
-// Refresh the UI after reservation, checkout, or automatic expiry.
-inventoryStateMachine.subscribe(() => refreshView());
+// Refresh the UI when reservations expire or inventory changes.
+inventory.subscribe(() => refreshView());
 reserveButton.addEventListener("click", () => {
-    const result = inventoryStateMachine.reserve(1, inventoryStateMachine.getSnapshot().version);
+    // Enforce the deadline in the event handler too, not only in the UI.
+    if (saleEnded || Date.now() >= saleDeadline) {
+        saleEnded = true;
+        refreshView();
+        return;
+    }
+    const result = inventory.reserve(1, inventory.getSnapshot().version, LOCK_DURATION_MS);
     if (!result.success) {
         flashSaleState.reservationStatus = result.error.message;
         refreshView();
@@ -100,7 +147,7 @@ checkoutButton.addEventListener("click", () => {
     if (!activeReservationId) {
         return;
     }
-    const result = checkoutService.checkout(activeReservationId, inventoryStateMachine.getSnapshot().version);
+    const result = checkoutService.checkout(activeReservationId, inventory.getSnapshot().version);
     if (!result.success) {
         flashSaleState.checkoutStatus =
             result.error.code === "RESERVATION_EXPIRED"
@@ -111,10 +158,16 @@ checkoutButton.addEventListener("click", () => {
 });
 const countdownElement = getElement("countdown");
 const timerLabel = document.querySelector(".timer-label");
-const cancelFlashSaleTimer = createAntiDriftTimer(flashSaleState.countdownMs, (remaining) => {
+const cancelTimer = createAntiDriftTimer(flashSaleState.countdownMs, (remaining) => {
     countdownElement.textContent = formatRemaining(remaining);
-    if (remaining === 0 && timerLabel) {
-        timerLabel.textContent = "Ưu đãi đã kết thúc";
+    if (remaining === 0) {
+        saleEnded = true;
+        if (timerLabel) {
+            timerLabel.textContent = "Ưu đãi đã kết thúc";
+        }
+        refreshView();
     }
 });
-window.addEventListener("pagehide", cancelFlashSaleTimer, { once: true });
+window.addEventListener("pagehide", cancelTimer, { once: true });
+// Render the initial state.
+refreshView();
