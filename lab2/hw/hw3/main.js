@@ -1,4 +1,5 @@
 import { createAntiDriftTimer } from "./anti-drift-timer.js";
+import { InventoryStateMachine } from "./inventory.js";
 const flashSaleState = {
     product: {
         price: 1290000,
@@ -6,16 +7,11 @@ const flashSaleState = {
         discountPercent: 35
     },
     countdownMs: 600000,
-    inventory: {
-        initialStock: 100,
-        available: 64,
-        reserved: 12,
-        sold: 24,
-        version: 0
-    },
     reservationStatus: "Chưa giữ hàng",
     checkoutStatus: "Chưa thanh toán"
 };
+// The state machine is the single source of inventory quantities.
+const inventoryStateMachine = new InventoryStateMachine(100);
 function getElement(id) {
     const element = document.getElementById(id);
     if (!element) {
@@ -36,8 +32,8 @@ function formatRemaining(ms) {
         String(seconds).padStart(2, "0")
     ].join(":") + "." + String(milliseconds).padStart(3, "0");
 }
-function renderFlashSaleView(state) {
-    const { product, countdownMs, inventory } = state;
+function renderFlashSaleView(state, inventory) {
+    const { product } = state;
     const soldPercent = inventory.initialStock > 0
         ? (inventory.sold / inventory.initialStock) * 100
         : 0;
@@ -46,8 +42,8 @@ function renderFlashSaleView(state) {
         formatVND(product.originalPrice);
     getElement("product-discount").textContent =
         `-${product.discountPercent}%`;
-    // Initial display; the live timer updates this element afterwards.
-    getElement("countdown").textContent = formatRemaining(countdownMs);
+    getElement("countdown").textContent =
+        formatRemaining(state.countdownMs);
     getElement("version").textContent = `VERSION ${inventory.version}`;
     getElement("stock-summary").textContent =
         `${inventory.available} / ${inventory.initialStock} sản phẩm còn có thể giữ`;
@@ -60,7 +56,7 @@ function renderFlashSaleView(state) {
     getElement("reservation-status").textContent = state.reservationStatus;
     getElement("checkout-status").textContent = state.checkoutStatus;
 }
-renderFlashSaleView(flashSaleState);
+renderFlashSaleView(flashSaleState, inventoryStateMachine.getSnapshot());
 const countdownElement = getElement("countdown");
 const timerLabel = document.querySelector(".timer-label");
 const cancelFlashSaleTimer = createAntiDriftTimer(flashSaleState.countdownMs, (remaining) => {
@@ -69,5 +65,4 @@ const cancelFlashSaleTimer = createAntiDriftTimer(flashSaleState.countdownMs, (r
         timerLabel.textContent = "Ưu đãi đã kết thúc";
     }
 });
-// Stop scheduling frames when the page is being unloaded.
 window.addEventListener("pagehide", cancelFlashSaleTimer, { once: true });

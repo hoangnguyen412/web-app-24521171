@@ -1,4 +1,8 @@
 import { createAntiDriftTimer } from "./anti-drift-timer.js";
+import {
+  InventoryStateMachine,
+  type InventorySnapshot
+} from "./inventory.js";
 
 interface Product {
   price: number;
@@ -6,18 +10,9 @@ interface Product {
   discountPercent: number;
 }
 
-interface Inventory {
-  initialStock: number;
-  available: number;
-  reserved: number;
-  sold: number;
-  version: number;
-}
-
 interface FlashSaleState {
   product: Product;
   countdownMs: number;
-  inventory: Inventory;
   reservationStatus: string;
   checkoutStatus: string;
 }
@@ -29,16 +24,12 @@ const flashSaleState: FlashSaleState = {
     discountPercent: 35
   },
   countdownMs: 600000,
-  inventory: {
-    initialStock: 100,
-    available: 64,
-    reserved: 12,
-    sold: 24,
-    version: 0
-  },
   reservationStatus: "Chưa giữ hàng",
   checkoutStatus: "Chưa thanh toán"
 };
+
+// The state machine is the single source of inventory quantities.
+const inventoryStateMachine = new InventoryStateMachine(100);
 
 function getElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -66,8 +57,11 @@ function formatRemaining(ms: number): string {
   ].join(":") + "." + String(milliseconds).padStart(3, "0");
 }
 
-function renderFlashSaleView(state: FlashSaleState): void {
-  const { product, countdownMs, inventory } = state;
+function renderFlashSaleView(
+  state: FlashSaleState,
+  inventory: InventorySnapshot
+): void {
+  const { product } = state;
 
   const soldPercent = inventory.initialStock > 0
     ? (inventory.sold / inventory.initialStock) * 100
@@ -79,8 +73,8 @@ function renderFlashSaleView(state: FlashSaleState): void {
   getElement("product-discount").textContent =
     `-${product.discountPercent}%`;
 
-  // Initial display; the live timer updates this element afterwards.
-  getElement("countdown").textContent = formatRemaining(countdownMs);
+  getElement("countdown").textContent =
+    formatRemaining(state.countdownMs);
 
   getElement("version").textContent = `VERSION ${inventory.version}`;
   getElement("stock-summary").textContent =
@@ -102,7 +96,10 @@ function renderFlashSaleView(state: FlashSaleState): void {
   getElement("checkout-status").textContent = state.checkoutStatus;
 }
 
-renderFlashSaleView(flashSaleState);
+renderFlashSaleView(
+  flashSaleState,
+  inventoryStateMachine.getSnapshot()
+);
 
 const countdownElement = getElement("countdown");
 const timerLabel = document.querySelector<HTMLElement>(".timer-label");
@@ -118,5 +115,4 @@ const cancelFlashSaleTimer = createAntiDriftTimer(
   }
 );
 
-// Stop scheduling frames when the page is being unloaded.
 window.addEventListener("pagehide", cancelFlashSaleTimer, { once: true });
