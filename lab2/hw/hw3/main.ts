@@ -1,8 +1,6 @@
 import { createAntiDriftTimer } from "./anti-drift-timer.js";
-import {
-  InventoryStateMachine,
-  type InventorySnapshot
-} from "./inventory.js";
+import { InventoryStateMachine, type InventorySnapshot } from "./inventory.js";
+import { CheckoutService } from "./checkout.js";
 
 interface Product {
   price: number;
@@ -28,8 +26,10 @@ const flashSaleState: FlashSaleState = {
   checkoutStatus: "Chưa thanh toán"
 };
 
-// The state machine is the single source of inventory quantities.
 const inventoryStateMachine = new InventoryStateMachine(100);
+const checkoutService = new CheckoutService(inventoryStateMachine);
+
+let activeReservationId: string | null = null;
 
 function getElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -57,11 +57,8 @@ function formatRemaining(ms: number): string {
   ].join(":") + "." + String(milliseconds).padStart(3, "0");
 }
 
-function renderFlashSaleView(
-  state: FlashSaleState,
-  inventory: InventorySnapshot
-): void {
-  const { product } = state;
+function renderFlashSaleView(inventory: InventorySnapshot): void {
+  const { product } = flashSaleState;
 
   const soldPercent = inventory.initialStock > 0
     ? (inventory.sold / inventory.initialStock) * 100
@@ -72,9 +69,6 @@ function renderFlashSaleView(
     formatVND(product.originalPrice);
   getElement("product-discount").textContent =
     `-${product.discountPercent}%`;
-
-  getElement("countdown").textContent =
-    formatRemaining(state.countdownMs);
 
   getElement("version").textContent = `VERSION ${inventory.version}`;
   getElement("stock-summary").textContent =
@@ -92,14 +86,81 @@ function renderFlashSaleView(
     String(Math.round(soldPercent))
   );
 
-  getElement("reservation-status").textContent = state.reservationStatus;
-  getElement("checkout-status").textContent = state.checkoutStatus;
+  getElement("reservation-status").textContent =
+    flashSaleState.reservationStatus;
+  getElement("checkout-status").textContent =
+    flashSaleState.checkoutStatus;
 }
 
-renderFlashSaleView(
-  flashSaleState,
-  inventoryStateMachine.getSnapshot()
-);
+const reserveButton = getElement("reserve-button") as HTMLButtonElement;
+const checkoutButton = getElement("checkout-button") as HTMLButtonElement;
+
+function refreshView(): void {
+  const inventory = inventoryStateMachine.getSnapshot();
+  const reservation = activeReservationId
+    ? inventoryStateMachine.getReservation(activeReservationId)
+    : undefined;
+
+  if (reservation?.status === "reserved") {
+    flashSaleState.reservationStatus = "Đang giữ hàng";
+    flashSaleState.checkoutStatus = "Chưa thanh toán";
+  } else if (reservation?.status === "expired") {
+    flashSaleState.reservationStatus = "Đã hết hạn";
+    flashSaleState.checkoutStatus = "Không thể thanh toán: hết hạn";
+  } else if (reservation?.status === "checked_out") {
+    flashSaleState.reservationStatus = "Đã xác nhận đơn";
+    flashSaleState.checkoutStatus = "Thanh toán thành công";
+  }
+
+  reserveButton.disabled =
+    inventory.available === 0 || reservation?.status === "reserved";
+
+  checkoutButton.disabled = reservation?.status !== "reserved";
+
+  renderFlashSaleView(inventory);
+}
+
+// Refresh the UI after reservation, checkout, or automatic expiry.
+inventoryStateMachine.subscribe(() => refreshView());
+
+reserveButton.addEventListener("click", () => {
+  const result = inventoryStateMachine.reserve(
+    1,
+    inventoryStateMachine.getSnapshot().version
+  );
+
+  if (!result.success) {
+    flashSaleState.reservationStatus = result.error.message;
+    refreshView();
+    return;
+  }
+
+  activeReservationId = result.data.id;
+  flashSaleState.reservationStatus = "Đang giữ hàng";
+  flashSaleState.checkoutStatus = "Chưa thanh toán";
+
+  refreshView();
+});
+
+checkoutButton.addEventListener("click", () => {
+  if (!activeReservationId) {
+    return;
+  }
+
+  const result = checkoutService.checkout(
+    activeReservationId,
+    inventoryStateMachine.getSnapshot().version
+  );
+
+  if (!result.success) {
+    flashSaleState.checkoutStatus =
+      result.error.code === "RESERVATION_EXPIRED"
+        ? "Không thể thanh toán: hết hạn"
+        : `Thanh toán thất bại: ${result.error.message}`;
+  }
+
+  refreshView();
+});
 
 const countdownElement = getElement("countdown");
 const timerLabel = document.querySelector<HTMLElement>(".timer-label");

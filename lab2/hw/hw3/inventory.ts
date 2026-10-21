@@ -12,14 +12,18 @@ export interface ReservationSnapshot {
   readonly id: string;
   readonly quantity: number;
   readonly status: ReservationStatus;
+  readonly expiresAt: number;
 }
 
 export type InventoryErrorCode =
   | "INVALID_QUANTITY"
+  | "INVALID_LOCK_DURATION"
   | "INSUFFICIENT_STOCK"
   | "RESERVATION_NOT_FOUND"
   | "INVALID_TRANSITION"
-  | "STALE_VERSION";
+  | "STALE_VERSION"
+  | "LOCK_NOT_EXPIRED"
+  | "RESERVATION_EXPIRED";
 
 export type InventoryResult<T> =
   | {
@@ -48,6 +52,7 @@ interface MutableReservation {
   id: string;
   quantity: number;
   status: ReservationStatus;
+  expiresAt: number;
 }
 
 const VALID_TRANSITIONS: Record<
@@ -59,6 +64,10 @@ const VALID_TRANSITIONS: Record<
   expired: []
 };
 
+export const DEFAULT_RESERVATION_LOCK_MS = 15_000;
+
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
 export function isValidReservationTransition(
   from: ReservationStatus,
   to: ReservationStatus
@@ -69,6 +78,14 @@ export function isValidReservationTransition(
 export class InventoryStateMachine {
   private readonly inventory: MutableInventory;
   private readonly reservations = new Map<string, MutableReservation>();
+  private readonly expiryTimers = new Map<
+    string,
+    ReturnType<typeof setTimeout>
+  >();
+  private readonly listeners = new Set<
+    (snapshot: InventorySnapshot) => void
+  >();
+
   private nextReservationId = 1;
 
   constructor(initialStock: number) {
@@ -98,11 +115,22 @@ export class InventoryStateMachine {
     return reservation ? { ...reservation } : undefined;
   }
 
+  subscribe(
+    listener: (snapshot: InventorySnapshot) => void
+  ): () => void {
+    this.listeners.add(listener);
+    listener(this.getSnapshot());
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   reserve(
     quantity: number,
-    expectedVersion: number
+    expectedVersion: number,
+    lockDurationMs = DEFAULT_RESERVATION_LOCK_MS
   ): InventoryResult<ReservationSnapshot> {
-    // Reject a stale request before changing any state.
     const versionError = this.checkVersion(expectedVersion);
 
     if (versionError) {
@@ -116,6 +144,17 @@ export class InventoryStateMachine {
       );
     }
 
+    if (
+      !Number.isSafeInteger(lockDurationMs) ||
+      lockDurationMs <= 0 ||
+      lockDurationMs > MAX_TIMEOUT_MS
+    ) {
+      return this.failure(
+        "INVALID_LOCK_DURATION",
+        "Lock duration must be a positive integer within the timer limit"
+      );
+    }
+
     if (quantity > this.inventory.available) {
       return this.failure(
         "INSUFFICIENT_STOCK",
@@ -126,7 +165,8 @@ export class InventoryStateMachine {
     const reservation: MutableReservation = {
       id: `reservation-${this.nextReservationId}`,
       quantity,
-      status: "reserved"
+      status: "reserved",
+      expiresAt: Date.now() + lockDurationMs
     };
 
     this.inventory.available -= quantity;
@@ -137,8 +177,24 @@ export class InventoryStateMachine {
     this.nextReservationId += 1;
 
     this.assertInvariants();
+    this.scheduleExpiry(reservation);
+    this.notifyListeners();
 
     return this.success({ ...reservation });
+  }
+
+  checkout(
+    id: string,
+    expectedVersion: number
+  ): InventoryResult<ReservationSnapshot> {
+    return this.transitionReservation(id, "checked_out", expectedVersion);
+  }
+
+  expireReservation(
+    id: string,
+    expectedVersion: number
+  ): InventoryResult<ReservationSnapshot> {
+    return this.transitionReservation(id, "expired", expectedVersion);
   }
 
   transitionReservation(
@@ -146,7 +202,6 @@ export class InventoryStateMachine {
     nextStatus: ReservationStatus,
     expectedVersion: number
   ): InventoryResult<ReservationSnapshot> {
-    // Every inventory mutation must validate its expected version.
     const versionError = this.checkVersion(expectedVersion);
 
     if (versionError) {
@@ -162,6 +217,41 @@ export class InventoryStateMachine {
       );
     }
 
+    if (
+      nextStatus === "checked_out" &&
+      reservation.status === "expired"
+    ) {
+      return this.failure(
+        "RESERVATION_EXPIRED",
+        "An expired reservation cannot be checked out"
+      );
+    }
+
+    if (
+      reservation.status === "reserved" &&
+      nextStatus === "checked_out" &&
+      Date.now() >= reservation.expiresAt
+    ) {
+      // Enforce expiry even if the scheduled timeout has not run yet.
+      this.finalizeExpiry(reservation);
+
+      return this.failure(
+        "RESERVATION_EXPIRED",
+        "The reservation expired before checkout"
+      );
+    }
+
+    if (
+      reservation.status === "reserved" &&
+      nextStatus === "expired" &&
+      Date.now() < reservation.expiresAt
+    ) {
+      return this.failure(
+        "LOCK_NOT_EXPIRED",
+        "The reservation lock has not expired yet"
+      );
+    }
+
     if (!isValidReservationTransition(reservation.status, nextStatus)) {
       return this.failure(
         "INVALID_TRANSITION",
@@ -170,19 +260,80 @@ export class InventoryStateMachine {
     }
 
     if (nextStatus === "checked_out") {
+      this.clearExpiryTimer(id);
+
       this.inventory.reserved -= reservation.quantity;
       this.inventory.sold += reservation.quantity;
-    } else {
-      this.inventory.reserved -= reservation.quantity;
-      this.inventory.available += reservation.quantity;
+      reservation.status = "checked_out";
+      this.inventory.version += 1;
+
+      this.assertInvariants();
+      this.notifyListeners();
+
+      return this.success({ ...reservation });
     }
 
-    reservation.status = nextStatus;
+    this.finalizeExpiry(reservation);
+    return this.success({ ...reservation });
+  }
+
+  private scheduleExpiry(reservation: MutableReservation): void {
+    this.clearExpiryTimer(reservation.id);
+
+    const delay = Math.max(0, reservation.expiresAt - Date.now());
+
+    const timer = setTimeout(() => {
+      this.expiryTimers.delete(reservation.id);
+      this.handleExpiryTimer(reservation.id);
+    }, delay);
+
+    // Avoid keeping a Node.js test process alive solely for a lock timer.
+    // Browsers use numeric timer IDs and simply skip this optional method.
+    const nodeTimer = timer as unknown as { unref?: () => void };
+    nodeTimer.unref?.();
+
+    this.expiryTimers.set(reservation.id, timer);
+  }
+
+  private handleExpiryTimer(id: string): void {
+    const reservation = this.reservations.get(id);
+
+    if (!reservation || reservation.status !== "reserved") {
+      return;
+    }
+
+    // Re-check the deadline rather than trusting the timer's firing time.
+    if (Date.now() < reservation.expiresAt) {
+      this.scheduleExpiry(reservation);
+      return;
+    }
+
+    this.finalizeExpiry(reservation);
+  }
+
+  private finalizeExpiry(reservation: MutableReservation): void {
+    if (reservation.status !== "reserved") {
+      return;
+    }
+
+    this.clearExpiryTimer(reservation.id);
+
+    this.inventory.reserved -= reservation.quantity;
+    this.inventory.available += reservation.quantity;
+    reservation.status = "expired";
     this.inventory.version += 1;
 
     this.assertInvariants();
+    this.notifyListeners();
+  }
 
-    return this.success({ ...reservation });
+  private clearExpiryTimer(id: string): void {
+    const timer = this.expiryTimers.get(id);
+
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      this.expiryTimers.delete(id);
+    }
   }
 
   private checkVersion(
@@ -196,6 +347,14 @@ export class InventoryStateMachine {
     }
 
     return null;
+  }
+
+  private notifyListeners(): void {
+    const snapshot = this.getSnapshot();
+
+    for (const listener of this.listeners) {
+      listener(snapshot);
+    }
   }
 
   private success<T>(data: T): InventoryResult<T> {

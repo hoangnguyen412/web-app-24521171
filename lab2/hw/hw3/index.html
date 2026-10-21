@@ -323,6 +323,27 @@
       border: 1px solid #50505e;
     }
 
+    .action-button:enabled {
+      cursor: pointer;
+      opacity: 1;
+      transition: filter 160ms ease, transform 160ms ease;
+    }
+
+    .action-button:enabled:hover {
+      filter: brightness(1.12);
+      transform: translateY(-1px);
+    }
+
+    .action-button:focus-visible {
+      outline: 2px solid #ff8294;
+      outline-offset: 3px;
+    }
+
+    .action-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+
     .notice {
       margin: 14px 0 0;
       color: var(--muted);
@@ -461,16 +482,26 @@
           </div>
 
           <div class="actions">
-            <button class="action-button reserve-button" type="button" disabled>
+            <button
+              id="reserve-button"
+              class="action-button reserve-button"
+              type="button"
+            >
               Giữ hàng
             </button>
-            <button class="action-button checkout-button" type="button" disabled>
+            <button
+              id="checkout-button"
+              class="action-button checkout-button"
+              type="button"
+              disabled
+            >
               Thanh toán
             </button>
           </div>
 
           <p class="notice">
-            Các thao tác sẽ được kết nối ở T-04, T-05 và T-06.
+            Hàng được giữ trong 15 giây. Thanh toán trước khi hết hạn
+            để hoàn tất đơn hàng.
           </p>
         </section>
       </div>
@@ -478,7 +509,7 @@
 
     <footer>
       HW3 · High-Concurrency Flash-Sale E-Commerce Engine<br />
-      T-03: Zero-drift countdown integration.
+      T-06: Reservation expiry and checkout simulation.
     </footer>
   </main>
 
