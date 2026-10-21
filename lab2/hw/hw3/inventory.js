@@ -11,7 +11,7 @@ export class InventoryStateMachine {
         this.reservations = new Map();
         this.nextReservationId = 1;
         if (!Number.isSafeInteger(initialStock) || initialStock < 0) {
-            throw new RangeError("initialStock must be a non-negative integer");
+            throw new RangeError("initialStock must be a non-negative safe integer");
         }
         this.inventory = {
             initialStock,
@@ -29,9 +29,14 @@ export class InventoryStateMachine {
         const reservation = this.reservations.get(id);
         return reservation ? { ...reservation } : undefined;
     }
-    reserve(quantity) {
+    reserve(quantity, expectedVersion) {
+        // Reject a stale request before changing any state.
+        const versionError = this.checkVersion(expectedVersion);
+        if (versionError) {
+            return versionError;
+        }
         if (!Number.isSafeInteger(quantity) || quantity <= 0) {
-            return this.failure("INVALID_QUANTITY", "Quantity must be a positive integer");
+            return this.failure("INVALID_QUANTITY", "Quantity must be a positive safe integer");
         }
         if (quantity > this.inventory.available) {
             return this.failure("INSUFFICIENT_STOCK", "Not enough available stock");
@@ -49,7 +54,12 @@ export class InventoryStateMachine {
         this.assertInvariants();
         return this.success({ ...reservation });
     }
-    transitionReservation(id, nextStatus) {
+    transitionReservation(id, nextStatus, expectedVersion) {
+        // Every inventory mutation must validate its expected version.
+        const versionError = this.checkVersion(expectedVersion);
+        if (versionError) {
+            return versionError;
+        }
         const reservation = this.reservations.get(id);
         if (!reservation) {
             return this.failure("RESERVATION_NOT_FOUND", `Reservation "${id}" does not exist`);
@@ -62,7 +72,6 @@ export class InventoryStateMachine {
             this.inventory.sold += reservation.quantity;
         }
         else {
-            // Expiry releases the reserved stock exactly once.
             this.inventory.reserved -= reservation.quantity;
             this.inventory.available += reservation.quantity;
         }
@@ -70,6 +79,12 @@ export class InventoryStateMachine {
         this.inventory.version += 1;
         this.assertInvariants();
         return this.success({ ...reservation });
+    }
+    checkVersion(expectedVersion) {
+        if (expectedVersion !== this.inventory.version) {
+            return this.failure("STALE_VERSION", `Expected version ${expectedVersion}, current version is ${this.inventory.version}`);
+        }
+        return null;
     }
     success(data) {
         return {

@@ -40,13 +40,13 @@ function test(name: string, run: () => void): void {
   console.log(`✔ ${name}`);
 }
 
-test("reservation moves stock to reserved", () => {
+test("reservation moves stock and increments version once", () => {
   const machine = new InventoryStateMachine(10);
-  const result = machine.reserve(4);
+  const result = machine.reserve(4, 0);
 
   assert(result.success, "Reservation should succeed");
-  equal(result.data.quantity, 4, "Quantity");
-  equal(result.data.status, "reserved", "Status");
+  equal(result.data.status, "reserved", "Reservation status");
+  equal(result.inventory.version, 1, "Version after reservation");
 
   assertSnapshot(machine.getSnapshot(), {
     initialStock: 10,
@@ -57,12 +57,12 @@ test("reservation moves stock to reserved", () => {
   });
 });
 
-test("rejects invalid quantities", () => {
+test("rejects invalid quantities without changing state", () => {
   const machine = new InventoryStateMachine(10);
   const initial = machine.getSnapshot();
 
   for (const quantity of [0, -1, 1.5, NaN, Infinity]) {
-    const result = machine.reserve(quantity);
+    const result = machine.reserve(quantity, 0);
 
     assert(!result.success, "Invalid quantity must fail");
 
@@ -74,12 +74,14 @@ test("rejects invalid quantities", () => {
   }
 });
 
-test("rejects reservation exceeding available stock", () => {
+test("rejects reservations exceeding available stock", () => {
   const machine = new InventoryStateMachine(3);
-  assert(machine.reserve(3).success, "Initial reservation should succeed");
+  const first = machine.reserve(3, 0);
+
+  assert(first.success, "First reservation should succeed");
 
   const before = machine.getSnapshot();
-  const result = machine.reserve(1);
+  const result = machine.reserve(1, before.version);
 
   assert(!result.success, "Overselling must be rejected");
 
@@ -92,16 +94,18 @@ test("rejects reservation exceeding available stock", () => {
 
 test("checkout moves reserved stock to sold", () => {
   const machine = new InventoryStateMachine(10);
-  const reservation = machine.reserve(4);
+  const reservation = machine.reserve(4, 0);
 
   assert(reservation.success, "Reservation should succeed");
 
   const result = machine.transitionReservation(
     reservation.data.id,
-    "checked_out"
+    "checked_out",
+    reservation.inventory.version
   );
 
   assert(result.success, "Checkout should succeed");
+  equal(result.inventory.version, 2, "Version after checkout");
 
   assertSnapshot(machine.getSnapshot(), {
     initialStock: 10,
@@ -112,23 +116,19 @@ test("checkout moves reserved stock to sold", () => {
   });
 });
 
-test("expiry releases stock back to available", () => {
+test("expiry releases reserved stock exactly once", () => {
   const machine = new InventoryStateMachine(10);
-  const reservation = machine.reserve(4);
+  const reservation = machine.reserve(4, 0);
 
   assert(reservation.success, "Reservation should succeed");
 
   const result = machine.transitionReservation(
     reservation.data.id,
-    "expired"
+    "expired",
+    reservation.inventory.version
   );
 
   assert(result.success, "Expiry should succeed");
-  equal(
-    machine.getReservation(reservation.data.id)?.status,
-    "expired",
-    "Reservation status"
-  );
 
   assertSnapshot(machine.getSnapshot(), {
     initialStock: 10,
@@ -141,41 +141,47 @@ test("expiry releases stock back to available", () => {
 
 test("rejects invalid and repeated transitions", () => {
   const machine = new InventoryStateMachine(10);
-  const reservation = machine.reserve(2);
+  const reservation = machine.reserve(2, 0);
 
   assert(reservation.success, "Reservation should succeed");
 
-  const before = machine.getSnapshot();
   const invalid = machine.transitionReservation(
     reservation.data.id,
-    "reserved"
+    "reserved",
+    reservation.inventory.version
   );
 
-  assert(!invalid.success, "Repeated reserved status must fail");
-  assertSnapshot(machine.getSnapshot(), before);
+  assert(!invalid.success, "Repeated reserved state must fail");
+
+  if (!invalid.success) {
+    equal(invalid.error.code, "INVALID_TRANSITION", "Error code");
+  }
 
   const expiry = machine.transitionReservation(
     reservation.data.id,
-    "expired"
+    "expired",
+    machine.getSnapshot().version
   );
 
   assert(expiry.success, "Expiry should succeed");
 
-  const afterExpiry = machine.getSnapshot();
+  const before = machine.getSnapshot();
   const checkout = machine.transitionReservation(
     reservation.data.id,
-    "checked_out"
+    "checked_out",
+    before.version
   );
 
   assert(!checkout.success, "Expired reservation cannot be checked out");
-  assertSnapshot(machine.getSnapshot(), afterExpiry);
+  assertSnapshot(machine.getSnapshot(), before);
 });
 
 test("rejects unknown reservation IDs", () => {
   const machine = new InventoryStateMachine(5);
   const result = machine.transitionReservation(
     "missing-reservation",
-    "checked_out"
+    "checked_out",
+    0
   );
 
   assert(!result.success, "Unknown reservation must fail");
@@ -184,27 +190,42 @@ test("rejects unknown reservation IDs", () => {
     equal(result.error.code, "RESERVATION_NOT_FOUND", "Error code");
   }
 
-  assertSnapshot(machine.getSnapshot(), {
-    initialStock: 5,
-    available: 5,
-    reserved: 0,
-    sold: 0,
-    version: 0
-  });
+  equal(machine.getSnapshot().version, 0, "Version must not change");
 });
 
 test("allows only defined reservation transitions", () => {
-  equal(isValidReservationTransition("reserved", "checked_out"), true, "Checkout transition");
-  equal(isValidReservationTransition("reserved", "expired"), true, "Expiry transition");
-  equal(isValidReservationTransition("reserved", "reserved"), false, "Repeated state");
-  equal(isValidReservationTransition("expired", "checked_out"), false, "Expired checkout");
-  equal(isValidReservationTransition("checked_out", "expired"), false, "Checkout expiry");
+  equal(
+    isValidReservationTransition("reserved", "checked_out"),
+    true,
+    "Checkout transition"
+  );
+  equal(
+    isValidReservationTransition("reserved", "expired"),
+    true,
+    "Expiry transition"
+  );
+  equal(
+    isValidReservationTransition("reserved", "reserved"),
+    false,
+    "Repeated transition"
+  );
+  equal(
+    isValidReservationTransition("expired", "checked_out"),
+    false,
+    "Expired checkout"
+  );
+  equal(
+    isValidReservationTransition("checked_out", "expired"),
+    false,
+    "Checkout expiry"
+  );
 });
 
 test("supports zero initial stock", () => {
   const machine = new InventoryStateMachine(0);
+  const result = machine.reserve(1, 0);
 
-  assert(!machine.reserve(1).success, "Cannot reserve zero stock");
+  assert(!result.success, "Reservation with zero stock must fail");
 
   assertSnapshot(machine.getSnapshot(), {
     initialStock: 0,
@@ -229,4 +250,86 @@ test("rejects invalid initial stock", () => {
   }
 });
 
-console.log(`\nTests passed: ${passed}/10`);
+test("stale reservation update changes nothing", () => {
+  const machine = new InventoryStateMachine(5);
+  const first = machine.reserve(1, 0);
+
+  assert(first.success, "Initial reservation should succeed");
+
+  const before = machine.getSnapshot();
+  const stale = machine.reserve(1, 0);
+
+  assert(!stale.success, "Stale reservation must fail");
+
+  if (!stale.success) {
+    equal(stale.error.code, "STALE_VERSION", "Error code");
+  }
+
+  assertSnapshot(machine.getSnapshot(), before);
+});
+
+test("stale transition cannot change reservation or inventory", () => {
+  const machine = new InventoryStateMachine(5);
+  const reservation = machine.reserve(2, 0);
+
+  assert(reservation.success, "Reservation should succeed");
+
+  const before = machine.getSnapshot();
+  const stale = machine.transitionReservation(
+    reservation.data.id,
+    "checked_out",
+    0
+  );
+
+  assert(!stale.success, "Stale checkout must fail");
+
+  if (!stale.success) {
+    equal(stale.error.code, "STALE_VERSION", "Error code");
+  }
+
+  equal(
+    machine.getReservation(reservation.data.id)?.status,
+    "reserved",
+    "Reservation must remain reserved"
+  );
+
+  assertSnapshot(machine.getSnapshot(), before);
+});
+
+test("two buyers using the same version cannot both reserve the last unit", () => {
+  const machine = new InventoryStateMachine(1);
+  const sharedVersion = machine.getSnapshot().version;
+
+  const buyerA = machine.reserve(1, sharedVersion);
+  const afterBuyerA = machine.getSnapshot();
+
+  const buyerB = machine.reserve(1, sharedVersion);
+
+  assert(buyerA.success, "First buyer should reserve the last unit");
+  assert(!buyerB.success, "Second stale request must fail");
+
+  if (!buyerB.success) {
+    equal(buyerB.error.code, "STALE_VERSION", "Error code");
+  }
+
+  assertSnapshot(machine.getSnapshot(), afterBuyerA);
+
+  // Even with the refreshed version, no stock remains.
+  const retry = machine.reserve(1, machine.getSnapshot().version);
+
+  assert(!retry.success, "Second buyer must not oversell stock");
+
+  if (!retry.success) {
+    equal(retry.error.code, "INSUFFICIENT_STOCK", "Error code");
+  }
+
+  assertSnapshot(machine.getSnapshot(), {
+    initialStock: 1,
+    available: 0,
+    reserved: 1,
+    sold: 0,
+    version: 1
+  });
+});
+
+console.log(`\nTests passed: ${passed}/12`);

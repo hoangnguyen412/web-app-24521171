@@ -18,7 +18,8 @@ export type InventoryErrorCode =
   | "INVALID_QUANTITY"
   | "INSUFFICIENT_STOCK"
   | "RESERVATION_NOT_FOUND"
-  | "INVALID_TRANSITION";
+  | "INVALID_TRANSITION"
+  | "STALE_VERSION";
 
 export type InventoryResult<T> =
   | {
@@ -72,7 +73,9 @@ export class InventoryStateMachine {
 
   constructor(initialStock: number) {
     if (!Number.isSafeInteger(initialStock) || initialStock < 0) {
-      throw new RangeError("initialStock must be a non-negative integer");
+      throw new RangeError(
+        "initialStock must be a non-negative safe integer"
+      );
     }
 
     this.inventory = {
@@ -95,11 +98,21 @@ export class InventoryStateMachine {
     return reservation ? { ...reservation } : undefined;
   }
 
-  reserve(quantity: number): InventoryResult<ReservationSnapshot> {
+  reserve(
+    quantity: number,
+    expectedVersion: number
+  ): InventoryResult<ReservationSnapshot> {
+    // Reject a stale request before changing any state.
+    const versionError = this.checkVersion(expectedVersion);
+
+    if (versionError) {
+      return versionError;
+    }
+
     if (!Number.isSafeInteger(quantity) || quantity <= 0) {
       return this.failure(
         "INVALID_QUANTITY",
-        "Quantity must be a positive integer"
+        "Quantity must be a positive safe integer"
       );
     }
 
@@ -124,13 +137,22 @@ export class InventoryStateMachine {
     this.nextReservationId += 1;
 
     this.assertInvariants();
+
     return this.success({ ...reservation });
   }
 
   transitionReservation(
     id: string,
-    nextStatus: ReservationStatus
+    nextStatus: ReservationStatus,
+    expectedVersion: number
   ): InventoryResult<ReservationSnapshot> {
+    // Every inventory mutation must validate its expected version.
+    const versionError = this.checkVersion(expectedVersion);
+
+    if (versionError) {
+      return versionError;
+    }
+
     const reservation = this.reservations.get(id);
 
     if (!reservation) {
@@ -151,7 +173,6 @@ export class InventoryStateMachine {
       this.inventory.reserved -= reservation.quantity;
       this.inventory.sold += reservation.quantity;
     } else {
-      // Expiry releases the reserved stock exactly once.
       this.inventory.reserved -= reservation.quantity;
       this.inventory.available += reservation.quantity;
     }
@@ -160,7 +181,21 @@ export class InventoryStateMachine {
     this.inventory.version += 1;
 
     this.assertInvariants();
+
     return this.success({ ...reservation });
+  }
+
+  private checkVersion(
+    expectedVersion: number
+  ): InventoryResult<never> | null {
+    if (expectedVersion !== this.inventory.version) {
+      return this.failure(
+        "STALE_VERSION",
+        `Expected version ${expectedVersion}, current version is ${this.inventory.version}`
+      );
+    }
+
+    return null;
   }
 
   private success<T>(data: T): InventoryResult<T> {
@@ -171,10 +206,10 @@ export class InventoryStateMachine {
     };
   }
 
-  private failure(
+  private failure<T>(
     code: InventoryErrorCode,
     message: string
-  ): InventoryResult<never> {
+  ): InventoryResult<T> {
     return {
       success: false,
       error: { code, message },
