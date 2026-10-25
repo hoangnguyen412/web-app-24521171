@@ -1,7 +1,7 @@
-function SkillBadge({ skill, className = '' }) {
+function SkillBadge({ children, className = '' }) {
   return (
     <span className={className}>
-      {skill}
+      {children}
     </span>
   );
 }

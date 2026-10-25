@@ -3,7 +3,7 @@ import DeveloperCard from './components/DeveloperCard';
 function App() {
   return (
     <main>
-      <DeveloperCard />
+      <DeveloperCard avatarUrl="/me.jpg" />
     </main>
   );
 }

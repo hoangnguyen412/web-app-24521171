@@ -1,12 +1,6 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import SkillBadge from './SkillBadge';
-
-const DEFAULT_SKILLS = [
-  'React',
-  'JavaScript',
-  'Node.js',
-  'UI/UX',
-];
+import styles from './DeveloperCard.module.css';
 
 function getInitials(name) {
   return name
@@ -18,84 +12,80 @@ function getInitials(name) {
     .join('');
 }
 
-function DeveloperCard({
-  name = 'Alex Nguyen',
-  role = 'Frontend Developer',
-  bio = 'Building useful products through clean code and thoughtful design.',
-  avatarUrl = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240&h=240&fit=crop&crop=faces',
-  location = 'Ho Chi Minh City, Vietnam',
-  gamingHandle = 'PRO-ACE',
-  favoriteGame = 'Valorant',
-  rank = 'Diamond',
-  skills = DEFAULT_SKILLS,
+export default function DeveloperCard({
+  fullName = 'Dang Hoang Nguyen',
+  role = 'Senior Systems Architect • UIT S3T',
+  avatarUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=240',
+  metrics = {
+    commits: 512,
+    vmNodes: 0,
+    allyScore: 100,
+  },
+  skills = [
+    {
+      id: 'sk-1',
+      name: 'React 19 Fiber',
+      tier: 'Core',
+    },
+  ],
 }) {
   const [avatarFailed, setAvatarFailed] = useState(false);
-
-  const initials = getInitials(name) || 'NA';
+  const initials = getInitials(fullName) || 'NA';
 
   return (
-    <article className="developer-card">
-      <header className="developer-card__header">
+    <article
+      className={styles.card}
+      aria-labelledby="dev-heading"
+    >
+      <header className={styles.header}>
         {avatarFailed ? (
           <span
-            className="developer-card__avatar-fallback"
+            className={styles.avatarFallback}
             role="img"
-            aria-label={`${name} initials`}
+            aria-label={`${fullName} initials`}
           >
             {initials}
           </span>
         ) : (
           <img
-            className="developer-card__avatar"
+            className={styles.avatar}
             src={avatarUrl}
-            alt={`Portrait of ${name}`}
-            width={120}
-            height={120}
+            alt={fullName}
+            width={64}
+            height={64}
             onError={() => setAvatarFailed(true)}
           />
         )}
 
-        <hgroup>
-          <h1>{name}</h1>
-          <p>{role}</p>
+        <hgroup className={styles.identity}>
+          <h2 id="dev-heading" className={styles.name}>
+            {fullName}
+          </h2>
+          <p className={styles.role}>{role}</p>
         </hgroup>
       </header>
 
-      <p className="developer-card__bio">{bio}</p>
-
-      <dl className="developer-card__details">
-        <dt>Location</dt>
-        <dd>{location}</dd>
-
-        <dt>Gaming Handle</dt>
-        <dd>{gamingHandle}</dd>
-
-        <dt>Favorite Game</dt>
-        <dd>{favoriteGame}</dd>
-
-        <dt>Rank</dt>
-        <dd>{rank}</dd>
+      <dl className={styles.metrics}>
+        {Object.entries(metrics).map(([key, value]) => (
+          <Fragment key={key}>
+            <dt>{key}</dt>
+            <dd>{value}</dd>
+          </Fragment>
+        ))}
       </dl>
 
-      <section
-        className="developer-card__skills"
-        aria-labelledby="developer-skills-heading"
+      <ul
+        className={styles.skills}
+        aria-label="Engineered Skills"
       >
-        <h2 id="developer-skills-heading">Technical Skills</h2>
-
-        <ul>
-          {skills.map((skill) => (
-            <li key={skill}>
-              <SkillBadge
-                skill={skill}
-                className="skill-badge"
-              />
-            </li>
-          ))}
-        </ul>
-      </section>
+        {skills.map((skill) => (
+          <li key={skill.id}>
+            <SkillBadge className={styles.skillBadge}>
+              {skill.name} ({skill.tier})
+            </SkillBadge>
+          </li>
+        ))}
+      </ul>
     </article>
   );
 }
-
-export default DeveloperCard;

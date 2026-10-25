@@ -1,0 +1,130 @@
+.card {
+  --accent: #00c78a;
+  --accent-soft: #d0f0c0;
+  --text: #1f2937;
+  --muted: #64748b;
+  --border: #dbe5dc;
+  --surface: #ffffff;
+
+  width: 100%;
+  max-width: 680px;
+  padding: clamp(1.25rem, 5vw, 2rem);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  box-shadow: 0 20px 60px rgb(31 41 55 / 10%);
+  overflow-wrap: anywhere;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.avatar,
+.avatarFallback {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border: 2px solid var(--accent-soft);
+  border-radius: 50%;
+}
+
+.avatar {
+  display: block;
+  object-fit: cover;
+  background: #e5e7eb;
+}
+
+.avatarFallback {
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: #276749;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.identity {
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-size: clamp(1.2rem, 4vw, 1.75rem);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.role {
+  margin: 0.4rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem 1rem;
+  margin: 1.5rem 0;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.metrics dt {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.metrics dd {
+  margin: 0;
+  font-weight: 750;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skills li {
+  max-width: 100%;
+}
+
+.skillBadge {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 0.45rem 0.8rem;
+  color: #176548;
+  background: var(--accent-soft);
+  border: 1px solid #b7dfb0;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 375px) {
+  .card {
+    padding: 1rem;
+  }
+
+  .header {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .metrics {
+    gap: 0.65rem;
+  }
+}
