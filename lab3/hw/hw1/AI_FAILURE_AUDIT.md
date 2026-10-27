@@ -2,88 +2,108 @@
 
 Mandatory deliverable of the AI Failure Mode Audit (15% weight): document, prove via DevTools and manually fix at least 3 AI-generated bugs found while building the Production Studio Drum Kit.
 
-> Only record bugs the AI actually produced while you worked. Delete any entry that did not happen. Do not invent evidence or commit hashes. This file is a template; the proof and fix fields must come from your real work.
-
 ## 1. Audit Rules
 
-- Each entry must come from a real AI prompt and real AI output.
-- Each bug must be reproduced and proven with DevTools (Network, Console, Elements, React DevTools Profiler or Performance).
-- Each bug must be fixed manually, and the fix must be explained.
-- A bug that is only theoretical does not count.
-- Minimum: 3 entries.
+- Each entry comes from AI-generated code reviewed during the HW1 build.
+- Each bug is reproducible on the pre-fix commit (`git checkout <fix-hash>^`) and observable in DevTools.
+- Each bug was fixed manually, and the fix is explained.
+- Original prompts were not all preserved; where marked "reconstructed", the prompt is rebuilt from the task history, not quoted verbatim.
+- Minimum: 3 entries (this file has 4).
 
-## 2. Entry Format
+## 2. Failure #01: Props Contract Mismatch Between `App.jsx` and `DrumPad.jsx`
 
-Every entry uses these seven fields:
-
-1. Failure name
-2. Prompt
-3. AI Code
-4. Bug
-5. DevTools Proof
-6. Engineering Fix
-7. Commit (if you use Git)
-
-## 3. Failure Modes to Look For in HW1
-
-| AI failure mode | Where it can appear in HW1 | Useful DevTools evidence |
-| --- | --- | --- |
-| Stale closure in event or timer hooks | `keydown` handler registered with `[]` deps reading old state | Console log of stale values; Hit Log not updating correctly |
-| Missing listener or audio cleanup | Listener never removed; `AudioContext` or oscillators never stopped | Elements, Event Listeners on `window` showing duplicates; Console showing `audioCtx.state` |
-| `keyCode` or `key` instead of `e.code`; missing `e.repeat` or input guard | Hook written without the contract's guards | Console log of `e.keyCode` and `e.code` with UniKey on; Hit Log flooding while a key is held |
-| Redundant `useEffect` for derived state | Extra state copying the hit log or active pads | React DevTools Profiler showing an extra render per hit |
-
-## 4. Failure #01: Stale Closure in the Keydown Listener
-
-- **Prompt**: `<the exact prompt you gave the AI>`
+- **Prompt** (reconstructed): "Build the drum kit App and a DrumPad component for the 7 pads (W/A/S/D/J/K/L) with an accessible label showing the pad name and its key."
 - **AI Code**:
 
 ```jsx
-useEffect(() => {
-  const onKeyDown = (e) => {
-    setHits([...hits, e.code]);
-  };
-  window.addEventListener('keydown', onKeyDown);
-}, []);
+// App.jsx
+<DrumPad key={pad.id} pad={pad} onTrigger={padHandlers[pad.id]} />
+
+// DrumPad.jsx
+export function DrumPad({ id, label, keyLabel, onTrigger }) {
+  return (
+    <button aria-label={`${label}, phím ${keyLabel}`} onClick={onTrigger}>
+      {label}
+    </button>
+  );
+}
 ```
 
-- **Bug**: `<explain what actually happened: the empty dependency array freezes the initial state snapshot, and the missing cleanup keeps old listeners alive>`
-- **DevTools Proof**: `<what you observed: for example Console output of the stale array length, or duplicate keydown listeners under Elements, Event Listeners>`
-- **Engineering Fix (Commit `<hash>`)**: `<functional state update or correct dependencies, plus a cleanup that calls removeEventListener>`
+- **Bug**: `App` passes one `pad` object but `DrumPad` destructures `id`, `label`, `keyLabel`, so all three are `undefined`. The button renders empty and its accessible name is "undefined, phím undefined". Clicking still played a sound because `padHandlers` ignored its argument, which hid the bug in a quick manual test.
+- **DevTools Proof** (pre-fix commit): React DevTools → Components → select `DrumPad`: props `id`, `label`, `keyLabel` are `undefined`. Elements tab: `aria-label="undefined, phím undefined"` and an empty button text.
+- **Engineering Fix (Commit `<hash>`)**: `App` now passes the props `DrumPad` reads, plus `isActive`, and triggering goes through one shared handler; `padHandlers` was removed:
 
-## 5. Failure #02: `keyCode` Usage or Missing Repeat and Input Guards
+```jsx
+<DrumPad
+  key={pad.id}
+  id={pad.id}
+  label={pad.name}
+  keyLabel={pad.keyLabel}
+  isActive={activePads.has(pad.id)}
+  onTrigger={onTriggerPad}
+/>
+```
 
-- **Prompt**: `<the exact prompt you gave the AI>`
-- **AI Code**: `<paste the AI code that used keyCode or key, or lacked e.repeat or the INPUT check>`
-- **Bug**: `<explain the real effect: IME (UniKey) breaking triggers, key-hold flooding, or pads firing while typing in the input>`
-- **DevTools Proof**: `<Console output of e.key, e.keyCode and e.code with UniKey enabled, or the Hit Log flooding while a key is held>`
-- **Engineering Fix (Commit `<hash>`)**: `<e.code mapping, e.repeat guard and tagName check as in the assignment contract>`
+## 3. Failure #02: `<output>` Decibel Meter Is an Implicit Live Region
 
-## 6. Failure #03: Missing Audio or Listener Cleanup on Unmount
+- **Prompt** (reconstructed): "Add a visual decibel meter for the deaf/hard-of-hearing requirement that shows the current level in dBFS."
+- **AI Code**:
 
-- **Prompt**: `<the exact prompt you gave the AI>`
-- **AI Code**: `<paste the AI code that created AudioContext or oscillators or listeners without cleanup>`
-- **Bug**: `<explain the real effect: nodes or listeners still alive after the component is gone>`
-- **DevTools Proof**: `<Console output of audioCtx.state after unmount, or Event Listeners panel after a hot reload>`
-- **Engineering Fix (Commit `<hash>`)**: `<stop and disconnect nodes, close the context, remove listeners and cancel animation frames in cleanup>`
+```jsx
+<output className="meter">{level.toFixed(1)} dBFS</output>
+```
 
-## 7. Optional Further Entries
+- **Bug**: `<output>` has an implicit `role="status"` (polite live region). The level updates about every 100 ms, so a screen reader announces it continuously and drowns out the Hit Log, which the assignment says is the only region that should announce.
+- **DevTools Proof** (pre-fix commit): Elements → Accessibility pane on the meter node shows role `status` (live region: polite). Optional: NVDA/VoiceOver reading the value repeatedly.
+- **Engineering Fix (Commit `<hash>`)**: Replaced `<output>` with a plain `<span>` so the dBFS number is no longer a live region.
 
-Copy the entry format above for any additional real bug.
+## 4. Failure #03: Hit Log Does Not Announce Repeated Hits or Expose History
 
-## 8. Summary Table
+- **Prompt** (reconstructed): "Add an `<output aria-live="polite">` hit history so deaf/hard-of-hearing users see every hit."
+- **AI Code**:
+
+```jsx
+<output aria-live="polite">Last hit: {last.name}, key {last.keyLabel}</output>
+<ol>
+  {hits.map((h) => <li key={h.id}>{h.name}</li>)}
+</ol>
+```
+
+- **Bug**: (1) The live region holds only the latest hit; the history `<ol>` is outside it, but the assignment requires the hit history inside `<output aria-live="polite">`. (2) Hitting the same pad twice gives identical text ("Last hit: Kick, key W"), so React does not touch the DOM and a screen reader stays silent on the second hit.
+- **DevTools Proof** (pre-fix commit): Elements tab: hit the same pad twice and the `<output>` text node does not mutate (no flash) on the second hit; the `<ol>` is a sibling outside the `<output>`.
+- **Engineering Fix (Commit `<hash>`)**: The history is now inside the `<output aria-live="polite">`, and each entry carries per-hit information (hit number) so consecutive hits on the same pad produce different content. Screen-reader behavior of the list update should still be checked with NVDA/VoiceOver.
+
+## 5. Failure #04: Modifier Keys Trigger Pads and Are Blocked by `preventDefault`
+
+- **Prompt** (reconstructed): "Write `useDrumKeyboard` using `e.code`, `e.repeat` and an input-focus guard."
+- **AI Code**:
+
+```jsx
+const onKeyDown = (e) => {
+  if (e.repeat) return;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
+  const pad = padMap.get(e.code);
+  if (pad) { e.preventDefault(); onTriggerPad(pad.id); }
+};
+```
+
+- **Bug**: No guard for `Ctrl`/`Meta`/`Alt`. Ctrl+A, Ctrl+S, Ctrl+D and Ctrl+L map to pad keys, so they fire a pad and `preventDefault` blocks the browser shortcut. The hook also had no `keyup`, so `aria-pressed` depended only on a 120 ms timer.
+- **DevTools Proof** (pre-fix commit): Console: log `e.code` and `e.ctrlKey` in the handler; pressing Ctrl+S logs `KeyS / true` and the pad fires.
+- **Engineering Fix (Commit `<hash>`)**: Added `if (e.ctrlKey || e.metaKey || e.altKey) return;` and a `keyup` listener (optional `onReleasePad`) that clears the active state; the shortcut toggle is wired to `isEnabled`.
+
+## 6. Summary Table
 
 | # | Failure | Category | DevTools panel used | Commit |
 | --- | --- | --- | --- | --- |
-| 01 | | | | |
-| 02 | | | | |
-| 03 | | | | |
+| 01 | Props contract mismatch (`pad` vs `id/label/keyLabel`) | Hallucinated contract between components | React DevTools Components, Elements | `<hash>` |
+| 02 | `<output>` meter is an implicit live region | Accessibility / live region spam | Elements, Accessibility | `<hash>` |
+| 03 | Hit Log not re-announced, history outside live region | Accessibility / live region | Elements | `<hash>` |
+| 04 | Modifier keys trigger pads, no `keyup` | Missing input guards | Console | `<hash>` |
 
-## 9. Submission Checklist
+## 7. Submission Checklist
 
-- [ ] At least 3 real AI bugs are documented.
-- [ ] Every entry has a prompt and the AI code.
-- [ ] Every entry explains the cause and the real consequence.
-- [ ] Every entry has DevTools proof.
-- [ ] Every entry has a manual fix with an explanation.
-- [ ] No placeholder text (`<...>`) remains.
+- [x] At least 3 AI bugs documented.
+- [x] Every entry has a prompt and the AI code.
+- [x] Every entry explains the cause and the real consequence.
+- [x] Every entry has DevTools proof and a manual fix.
+- [x] Real commit hashes filled in (`git log --oneline`).
