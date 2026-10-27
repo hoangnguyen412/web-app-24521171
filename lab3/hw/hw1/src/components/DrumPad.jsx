@@ -4,37 +4,23 @@ export const DrumPad = memo(function DrumPad({
   id,
   label,
   keyLabel,
-  color,
   isActive,
   onTrigger,
 }) {
-  const handleTrigger = () => {
-    onTrigger(id);
-  };
-
   return (
     <button
       type="button"
-      className={[
-        'drum-pad',
-        color ? `drum-pad--${color}` : '',
-        isActive ? 'drum-pad--active' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      data-pad-id={id}
-      aria-label={`${label}, phím ${keyLabel}`}
+      className={`drum-pad${isActive ? ' drum-pad--active' : ''}`}
+      aria-label={`${label}, key ${keyLabel}`}
       aria-pressed={isActive}
-      onClick={handleTrigger}
+      onClick={() => onTrigger(id)}
     >
-      <span className="drum-pad__label">{label}</span>
-
       <span className="drum-pad__key" aria-hidden="true">
         {keyLabel}
       </span>
 
-      <span className="drum-pad__status" aria-hidden="true">
-        {isActive ? 'PLAYING' : 'READY'}
+      <span className="drum-pad__name">
+        {label}
       </span>
     </button>
   );
