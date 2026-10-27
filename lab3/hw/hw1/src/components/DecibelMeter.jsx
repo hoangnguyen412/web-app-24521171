@@ -29,7 +29,9 @@ export function DecibelMeter({
         const level = audioEngine.getLevelDb();
 
         setLevelDb(
-          Number.isFinite(level) ? clamp(level, -100, 0) : -100
+          Number.isFinite(level)
+            ? clamp(level, -100, 0)
+            : -100
         );
       } catch {
         setLevelDb(-100);
@@ -38,7 +40,10 @@ export function DecibelMeter({
 
     updateLevel();
 
-    const timerId = window.setInterval(updateLevel, interval);
+    const timerId = window.setInterval(
+      updateLevel,
+      interval
+    );
 
     return () => {
       window.clearInterval(timerId);
@@ -63,13 +68,15 @@ export function DecibelMeter({
       aria-labelledby="decibel-meter-heading"
     >
       <div className="decibel-meter__header">
-        <h2 id="decibel-meter-heading">Audio Level</h2>
+        <h2 id="decibel-meter-heading">
+          Audio Level
+        </h2>
 
-        <output className="decibel-meter__reading">
+        <span className="decibel-meter__reading">
           {levelDb <= MIN_DB
             ? `≤ ${MIN_DB} dBFS`
             : `${roundedDb} dBFS`}
-        </output>
+        </span>
       </div>
 
       <div
