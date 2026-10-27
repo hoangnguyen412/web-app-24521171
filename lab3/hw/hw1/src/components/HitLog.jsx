@@ -11,7 +11,7 @@ function formatTimestamp(timestamp) {
   if (Number.isNaN(date.getTime())) return null;
 
   return {
-    label: new Intl.DateTimeFormat('vi-VN', {
+    label: new Intl.DateTimeFormat('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
@@ -21,12 +21,25 @@ function formatTimestamp(timestamp) {
 }
 
 function getPadName(hit) {
-  return hit.padName ?? hit.label ?? hit.pad?.name ?? hit.pad ?? 'Unknown pad';
+  const fallbackPad =
+    typeof hit.pad === 'string'
+      ? hit.pad
+      : hit.pad?.name;
+
+  return (
+    hit.padName ??
+    hit.label ??
+    fallbackPad ??
+    'Unknown pad'
+  );
 }
 
 function formatKey(key) {
   if (!key) return '';
-  return key.startsWith('Key') ? key.slice(3) : key;
+
+  return key.startsWith('Key')
+    ? key.slice(3)
+    : key;
 }
 
 export const HitLog = memo(function HitLog({
@@ -38,17 +51,12 @@ export const HitLog = memo(function HitLog({
       ? maxEntries
       : 10;
 
-  // Keep the most recent hits, newest first.
-  const visibleHits = hits.slice(-limit).reverse();
-  const latestHit = visibleHits[0];
+  // Keep the last N events in chronological order for
+  // the accessible live history.
+  const history = hits.slice(-limit);
 
-  const latestName = latestHit
-    ? getPadName(latestHit)
-    : null;
-
-  const latestKey = latestHit
-    ? formatKey(latestHit.key)
-    : '';
+  // Display the newest visual entry first.
+  const visibleHits = [...history].reverse();
 
   return (
     <section
@@ -57,16 +65,41 @@ export const HitLog = memo(function HitLog({
     >
       <h2 id="hit-log-heading">Hit Log</h2>
 
-      {/* Announce the latest hit to assistive technology. */}
       <output
-        className="hit-log__announcement"
+        className="sr-only"
+        aria-label="Drum hit history"
         aria-live="polite"
-        aria-atomic="true"
-        aria-label="Latest drum hit"
+        aria-atomic="false"
       >
-        {latestHit
-          ? `Last hit: ${latestName}${latestKey ? `, key ${latestKey}` : ''}`
-          : 'No hits yet.'}
+        {history.length === 0 ? (
+          <span>No hits yet.</span>
+        ) : (
+          history.map((hit, index) => {
+            const padName = getPadName(hit);
+            const key = formatKey(hit.key);
+            const timestamp = formatTimestamp(
+              hit.timestamp
+            );
+
+            const hitNumber = hit.id ?? index + 1;
+
+            return (
+              <span
+                key={
+                  hit.id ??
+                  `${hit.timestamp ?? 'unknown'}-${hit.key ?? ''}-${index}`
+                }
+              >
+                {`Hit ${hitNumber}: ${padName}`}
+                {key ? `, key ${key}` : ''}
+                {timestamp
+                  ? `, at ${timestamp.label}`
+                  : ''}
+                {'. '}
+              </span>
+            );
+          })
+        )}
       </output>
 
       {visibleHits.length === 0 ? (
@@ -81,7 +114,9 @@ export const HitLog = memo(function HitLog({
           {visibleHits.map((hit, index) => {
             const padName = getPadName(hit);
             const key = formatKey(hit.key);
-            const timestamp = formatTimestamp(hit.timestamp);
+            const timestamp = formatTimestamp(
+              hit.timestamp
+            );
 
             return (
               <li
