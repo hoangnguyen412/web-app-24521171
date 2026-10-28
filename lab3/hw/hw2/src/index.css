@@ -7,7 +7,11 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-optical-sizing: auto;
+
+  --white-key-width: 42px;
+  --white-key-height: 220px;
+  --black-key-width: 27px;
+  --black-key-height: 138px;
 }
 
 * {
@@ -20,15 +24,14 @@ body {
   margin: 0;
 }
 
-button,
-input {
+button {
   font: inherit;
 }
 
 .app {
-  width: min(900px, calc(100% - 32px));
+  width: min(1100px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 56px 0;
+  padding: 48px 0;
 }
 
 .page-header {
@@ -63,6 +66,7 @@ h1 {
 }
 
 .summary-card,
+.piano-section,
 .verification {
   border: 1px solid #303440;
   border-radius: 14px;
@@ -85,8 +89,10 @@ h1 {
   font-size: 2rem;
 }
 
+.piano-section,
 .verification {
   padding: 24px;
+  margin-bottom: 24px;
 }
 
 .section-heading {
@@ -94,7 +100,7 @@ h1 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 24px;
+  margin-bottom: 22px;
 }
 
 h2 {
@@ -103,11 +109,126 @@ h2 {
 }
 
 .section-heading p,
+.piano-hint,
 .check-item p {
   margin: 6px 0 0;
   color: #a4a9ba;
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+.keyboard-count {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #262b38;
+  color: #d7dbea;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.piano-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 12px 4px 16px;
+  border: 1px solid #303440;
+  border-radius: 10px;
+  background: #101218;
+  overscroll-behavior-x: contain;
+}
+
+.piano-track {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  width: max-content;
+  height: var(--white-key-height);
+  isolation: isolate;
+}
+
+.piano-key {
+  appearance: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 1px 12px;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+
+.piano-key__label {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.2;
+  text-overflow: clip;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.piano-key--white {
+  position: relative;
+  z-index: 1;
+  width: var(--white-key-width);
+  height: var(--white-key-height);
+  flex-basis: var(--white-key-width);
+  border: 1px solid #aeb3c0;
+  border-radius: 0 0 5px 5px;
+  background: linear-gradient(180deg, #ffffff 0%, #e0e3eb 100%);
+  color: #202431;
+}
+
+.piano-key--white + .piano-key--white {
+  border-left-width: 0;
+}
+
+.piano-key--white:hover {
+  background: linear-gradient(180deg, #f2f5ff 0%, #cdd5e9 100%);
+}
+
+.piano-key--black {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  width: var(--black-key-width);
+  height: var(--black-key-height);
+  border: 1px solid #050608;
+  border-radius: 0 0 4px 4px;
+  background: linear-gradient(180deg, #393d49 0%, #101116 85%);
+  color: #f2f3f7;
+  box-shadow: 0 5px 7px rgb(0 0 0 / 35%);
+}
+
+.piano-key--black:hover {
+  background: linear-gradient(180deg, #51586b 0%, #202431 85%);
+}
+
+.piano-key--white.is-pressed {
+  background: #b9c9f3;
+  box-shadow: inset 0 3px 5px rgb(0 0 0 / 15%);
+}
+
+.piano-key--black.is-pressed {
+  background: linear-gradient(180deg, #5277bf 0%, #243f72 85%);
+}
+
+.piano-key:focus-visible {
+  z-index: 5;
+  outline: 3px solid #78a2ff;
+  outline-offset: -4px;
+}
+
+.piano-hint {
+  margin-top: 14px;
+}
+
+.verification {
+  margin-bottom: 0;
 }
 
 .status {
@@ -167,7 +288,7 @@ h2 {
 
 @media (max-width: 560px) {
   .app {
-    padding: 36px 0;
+    padding: 32px 0;
   }
 
   .summary {
@@ -182,8 +303,9 @@ h2 {
     font-size: 1.6rem;
   }
 
+  .piano-section,
   .verification {
-    padding: 18px;
+    padding: 16px;
   }
 
   .section-heading {

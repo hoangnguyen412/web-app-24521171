@@ -1,4 +1,5 @@
 import { PIANO_KEYS } from "./data/pianoKeys.js";
+import { PianoKey } from "./components/PianoKey.jsx";
 
 const whiteKeys = PIANO_KEYS.filter((key) => !key.isBlack);
 const blackKeys = PIANO_KEYS.filter((key) => key.isBlack);
@@ -7,10 +8,13 @@ const a0 = PIANO_KEYS[0];
 const a4 = PIANO_KEYS.find((key) => key.midi === 69);
 const c8 = PIANO_KEYS[PIANO_KEYS.length - 1];
 
+// Stable placeholders until note state and audio are implemented.
+const noopNoteHandler = () => {};
+
 const checks = [
   {
-    label: "88 keys generated",
-    detail: `${PIANO_KEYS.length} keys`,
+    label: "Total keys",
+    detail: `${PIANO_KEYS.length} keys; expected 88`,
     passed: PIANO_KEYS.length === 88,
   },
   {
@@ -29,7 +33,7 @@ const checks = [
     passed: a0.noteName === "A0" && a0.midi === 21,
   },
   {
-    label: "A4 reference frequency",
+    label: "A4 reference",
     detail: `${a4.freqHz} Hz`,
     passed: Math.abs(a4.freqHz - 440) < 1e-9,
   },
@@ -49,11 +53,11 @@ export default function App() {
         <p className="eyebrow">REACT 19 · HOMEWORK 2</p>
         <h1>88-Key Piano</h1>
         <p className="subtitle">
-          Phase A — Setup and Algorithmic Key Generation
+          Phase B — Piano UI and React.memo
         </p>
       </header>
 
-      <section className="summary" aria-label="Key generation summary">
+      <section className="summary" aria-label="Piano summary">
         <article className="summary-card">
           <span>Total keys</span>
           <strong>{PIANO_KEYS.length}</strong>
@@ -70,15 +74,55 @@ export default function App() {
         </article>
       </section>
 
-      <section className="verification">
+      <section className="piano-section" aria-labelledby="piano-heading">
         <div className="section-heading">
           <div>
-            <h2>Phase A verification</h2>
-            <p>Check the generated data before continuing.</p>
+            <h2 id="piano-heading">Piano keyboard</h2>
+            <p>Scroll horizontally to see all 88 keys.</p>
+          </div>
+
+          <span className="keyboard-count">
+            A0 — C8
+          </span>
+        </div>
+
+        <div className="piano-scroll">
+          <div
+            className="piano-track"
+            role="group"
+            aria-label="88 piano keys"
+          >
+            {PIANO_KEYS.map((key) => (
+              <PianoKey
+                key={key.midi}
+                midi={key.midi}
+                noteName={key.noteName}
+                isBlack={key.isBlack}
+                isPressed={false}
+                onNoteOn={noopNoteHandler}
+                onNoteOff={noopNoteHandler}
+              />
+            ))}
+          </div>
+        </div>
+
+        <p className="piano-hint">
+          Visual preview only. Note state and audio will be added in later
+          phases.
+        </p>
+      </section>
+
+      <section className="verification" aria-labelledby="verification-heading">
+        <div className="section-heading">
+          <div>
+            <h2 id="verification-heading">Phase A verification</h2>
+            <p>Confirm the generated key data remains correct.</p>
           </div>
 
           <span
-            className={`status ${allPassed ? "status-pass" : "status-fail"}`}
+            className={`status ${
+              allPassed ? "status-pass" : "status-fail"
+            }`}
             role="status"
             aria-live="polite"
           >
