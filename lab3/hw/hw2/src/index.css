@@ -1,0 +1,193 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  color: #e8eaf0;
+  background: #101218;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app {
+  width: min(900px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 56px 0;
+}
+
+.page-header {
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: #a4a9ba;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  line-height: 1.1;
+}
+
+.subtitle {
+  margin: 14px 0 0;
+  color: #a4a9ba;
+  line-height: 1.6;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-card,
+.verification {
+  border: 1px solid #303440;
+  border-radius: 14px;
+  background: #181b24;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+}
+
+.summary-card span {
+  color: #a4a9ba;
+  font-size: 0.9rem;
+}
+
+.summary-card strong {
+  font-size: 2rem;
+}
+
+.verification {
+  padding: 24px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.section-heading p,
+.check-item p {
+  margin: 6px 0 0;
+  color: #a4a9ba;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.status {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.status-pass {
+  color: #a8f0c6;
+  background: #173b2b;
+}
+
+.status-fail {
+  color: #ffb4b4;
+  background: #4a2025;
+}
+
+.check-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid #303440;
+}
+
+.check-icon {
+  display: grid;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 50%;
+  font-weight: 800;
+}
+
+.check-pass .check-icon {
+  color: #a8f0c6;
+  background: #173b2b;
+}
+
+.check-fail .check-icon {
+  color: #ffb4b4;
+  background: #4a2025;
+}
+
+@media (max-width: 560px) {
+  .app {
+    padding: 36px 0;
+  }
+
+  .summary {
+    gap: 8px;
+  }
+
+  .summary-card {
+    padding: 14px;
+  }
+
+  .summary-card strong {
+    font-size: 1.6rem;
+  }
+
+  .verification {
+    padding: 18px;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
