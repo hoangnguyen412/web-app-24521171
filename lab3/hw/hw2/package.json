@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "check:keys": "node scripts/check-piano-keys.js"
+    "check:keys": "node scripts/check-piano-keys.js",
+    "check:queue": "node scripts/check-fifo-queue.js"
   },
   "dependencies": {
     "react": "^19.3.1",
