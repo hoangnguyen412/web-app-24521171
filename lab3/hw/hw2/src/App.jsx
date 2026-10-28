@@ -1,12 +1,17 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { PIANO_KEYS } from "./data/pianoKeys.js";
 import { PianoKey } from "./components/PianoKey.jsx";
+import { PolyphonicSynth } from "./audio/PolyphonicSynth.js";
 
 const whiteKeys = PIANO_KEYS.filter((key) => !key.isBlack);
 const blackKeys = PIANO_KEYS.filter((key) => key.isBlack);
 
+const KEY_BY_MIDI = new Map(
+  PIANO_KEYS.map((key) => [key.midi, key]),
+);
+
 const a0 = PIANO_KEYS[0];
-const a4 = PIANO_KEYS.find((key) => key.midi === 69);
+const a4 = KEY_BY_MIDI.get(69);
 const c8 = PIANO_KEYS[PIANO_KEYS.length - 1];
 
 const checks = [
@@ -43,23 +48,45 @@ const checks = [
 ];
 
 export default function App() {
-  // MIDI numbers of currently pressed keys.
   const [pressed, setPressed] = useState(() => new Set());
 
-  // Keep callback references stable for React.memo.
+  // The synth instance remains stable across component renders.
+  const synthRef = useRef(null);
+
+  if (synthRef.current === null) {
+    synthRef.current = new PolyphonicSynth(8);
+  }
+
   const handleNoteOn = useCallback((midi) => {
+    const key = KEY_BY_MIDI.get(midi);
+    const synth = synthRef.current;
+
+    if (!key || !synth) {
+      return;
+    }
+
+    const stolenMidi = synth.noteOn(midi, key.freqHz);
+
     setPressed((previous) => {
-      if (previous.has(midi)) {
+      if (previous.has(midi) && stolenMidi === null) {
         return previous;
       }
 
       const next = new Set(previous);
+
+      if (stolenMidi !== null) {
+        next.delete(stolenMidi);
+      }
+
       next.add(midi);
+
       return next;
     });
   }, []);
 
   const handleNoteOff = useCallback((midi) => {
+    synthRef.current?.noteOff(midi);
+
     setPressed((previous) => {
       if (!previous.has(midi)) {
         return previous;
@@ -67,6 +94,7 @@ export default function App() {
 
       const next = new Set(previous);
       next.delete(midi);
+
       return next;
     });
   }, []);
@@ -83,7 +111,7 @@ export default function App() {
         <p className="eyebrow">REACT 19 · HOMEWORK 2</p>
         <h1>88-Key Piano</h1>
         <p className="subtitle">
-          Phase C — Pressed State and Stable Handlers
+          Phase D — Polyphonic Synth and FIFO Voice Stealing
         </p>
       </header>
 
@@ -108,7 +136,7 @@ export default function App() {
         <div className="section-heading">
           <div>
             <h2 id="piano-heading">Piano keyboard</h2>
-            <p>Hold a key to mark it as pressed.</p>
+            <p>Hold keys to play chords, then release to stop notes.</p>
           </div>
 
           <span className="keyboard-count">A0 — C8</span>
@@ -130,7 +158,7 @@ export default function App() {
           </div>
         </div>
 
-        <p className="piano-hint" role="status" aria-live="polite">
+        <p className="piano-hint" aria-live="polite">
           Pressed ({pressed.size}):{" "}
           {pressedNoteNames.length > 0
             ? pressedNoteNames.join(", ")
