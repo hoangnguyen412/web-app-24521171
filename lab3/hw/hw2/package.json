@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "check:keys": "node scripts/check-piano-keys.js",
-    "check:queue": "node scripts/check-fifo-queue.js"
+    "check:queue": "node scripts/check-fifo-queue.js",
+    "check:sequence": "node scripts/check-sequence-player.js"
   },
   "dependencies": {
     "react": "^19.3.1",

@@ -312,4 +312,161 @@ h2 {
     align-items: flex-start;
     flex-direction: column;
   }
+}.recording-section {
+  margin-bottom: 24px;
+  padding: 24px;
+  border: 1px solid #303440;
+  border-radius: 14px;
+  background: #181b24;
+}
+
+.recording-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.record-button,
+.stop-recording-button {
+  min-height: 40px;
+  padding: 9px 16px;
+  border: 1px solid #454b5c;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.record-button {
+  color: #fff;
+  background: #a93243;
+  border-color: #c84b5d;
+}
+
+.stop-recording-button {
+  color: #e8eaf0;
+  background: #292e3a;
+}
+
+.record-button:disabled,
+.stop-recording-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.record-button:focus-visible,
+.stop-recording-button:focus-visible {
+  outline: 3px solid #78a2ff;
+  outline-offset: 3px;
+}
+
+.recording-status {
+  color: #c6cada;
+  font-size: 0.9rem;
+}
+
+.recording-note,
+.empty-recording {
+  color: #a4a9ba;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.recording-table-scroll {
+  overflow-x: auto;
+  margin-top: 16px;
+}
+
+.recording-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.recording-table th,
+.recording-table td {
+  padding: 12px;
+  border-bottom: 1px solid #303440;
+  white-space: nowrap;
+}
+
+.recording-table th {
+  color: #a4a9ba;
+  font-size: 0.85rem;
+}
+
+.recording-table td {
+  font-size: 0.9rem;
+}
+
+@media (max-width: 560px) {
+  .recording-section {
+    padding: 16px;
+  }
+}
+.playback-section {
+  margin-bottom: 24px;
+  padding: 24px;
+  border: 1px solid #303440;
+  border-radius: 14px;
+  background: #181b24;
+}
+
+.playback-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.playback-controls label {
+  color: #c6cada;
+  font-size: 0.9rem;
+}
+
+.playback-controls select {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #454b5c;
+  border-radius: 8px;
+  color: #e8eaf0;
+  background: #292e3a;
+  cursor: pointer;
+}
+
+.play-button {
+  min-height: 40px;
+  padding: 9px 20px;
+  border: 1px solid #5277bf;
+  border-radius: 8px;
+  color: #fff;
+  background: #31599a;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.play-button:hover:not(:disabled) {
+  background: #416db4;
+}
+
+.play-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.play-button:focus-visible,
+.playback-controls select:focus-visible {
+  outline: 3px solid #78a2ff;
+  outline-offset: 3px;
+}
+
+.playback-status {
+  color: #a4a9ba;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 560px) {
+  .playback-section {
+    padding: 16px;
+  }
 }

@@ -3,6 +3,7 @@ import { PIANO_KEYS } from "./data/pianoKeys.js";
 import { PianoKey } from "./components/PianoKey.jsx";
 import { PolyphonicSynth } from "./audio/PolyphonicSynth.js";
 import { FifoQueue } from "./utils/FifoQueue.js";
+import { playSequence } from "./utils/sequencePlayer.js";
 
 const whiteKeys = PIANO_KEYS.filter((key) => !key.isBlack);
 const blackKeys = PIANO_KEYS.filter((key) => key.isBlack);
@@ -48,7 +49,6 @@ const checks = [
   },
 ];
 
-// Finalize one recorded note without changing its original queue position.
 function finalizeRecordedNote(activeRecording, midi, endMs) {
   const active = activeRecording.get(midi);
 
@@ -67,8 +67,13 @@ function finalizeRecordedNote(activeRecording, midi, endMs) {
 
 export default function App() {
   const [pressed, setPressed] = useState(() => new Set());
+
   const [isRecording, setIsRecording] = useState(false);
   const [recordingEvents, setRecordingEvents] = useState([]);
+
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [playbackStatus, setPlaybackStatus] = useState("Ready");
 
   const synthRef = useRef(null);
 
@@ -76,17 +81,24 @@ export default function App() {
     synthRef.current = new PolyphonicSynth(8);
   }
 
-  // Recording infrastructure remains stable across React renders.
   const recordingQueueRef = useRef(null);
+
   if (recordingQueueRef.current === null) {
     recordingQueueRef.current = new FifoQueue();
   }
 
   // MIDI -> { event, startedAt }
   const activeRecordingRef = useRef(new Map());
+
   const isRecordingRef = useRef(false);
+  const isPlayingRef = useRef(false);
+
   const recordingStartRef = useRef(null);
   const lastNoteStartRef = useRef(null);
+
+  // One controller per replay. Full Stop Sequence handling
+  // will be implemented in Phase G.
+  const replayControllerRef = useRef(null);
 
   const handleNoteOn = useCallback((midi) => {
     const key = KEY_BY_MIDI.get(midi);
@@ -99,7 +111,7 @@ export default function App() {
     const stolenMidi = synth.noteOn(midi, key.freqHz);
     const startedAt = performance.now();
 
-    // If the 9th voice steals an active note, finalize its recording.
+    // Finalize a note removed by FIFO voice stealing.
     if (stolenMidi !== null && isRecordingRef.current) {
       finalizeRecordedNote(
         activeRecordingRef.current,
@@ -108,6 +120,8 @@ export default function App() {
       );
     }
 
+    // Only physical/user recording events enter the queue.
+    // Replay runs while this flag is false.
     if (isRecordingRef.current) {
       const previousStart =
         lastNoteStartRef.current ??
@@ -133,7 +147,6 @@ export default function App() {
 
       lastNoteStartRef.current = startedAt;
 
-      // Refresh the displayed queue, preserving note-on order.
       setRecordingEvents(recordingQueueRef.current.toArray());
     }
 
@@ -169,6 +182,7 @@ export default function App() {
 
       const next = new Set(previous);
       next.delete(midi);
+
       return next;
     });
 
@@ -178,9 +192,12 @@ export default function App() {
   }, []);
 
   const startRecording = useCallback(() => {
+    if (isPlayingRef.current) {
+      return;
+    }
+
     const queue = recordingQueueRef.current;
 
-    // Each new recording replaces the previous one.
     queue.clear();
     activeRecordingRef.current.clear();
 
@@ -188,10 +205,12 @@ export default function App() {
 
     recordingStartRef.current = now;
     lastNoteStartRef.current = now;
+
     isRecordingRef.current = true;
 
     setRecordingEvents([]);
     setIsRecording(true);
+    setPlaybackStatus("Ready");
   }, []);
 
   const stopRecording = useCallback(() => {
@@ -201,7 +220,7 @@ export default function App() {
 
     const stoppedAt = performance.now();
 
-    // Finalize every note still held when recording stops.
+    // Finalize all notes still held.
     for (const midi of [...activeRecordingRef.current.keys()]) {
       finalizeRecordedNote(
         activeRecordingRef.current,
@@ -217,6 +236,56 @@ export default function App() {
     setRecordingEvents(recordingQueueRef.current.toArray());
   }, []);
 
+  const handlePlay = useCallback(async () => {
+    if (isRecordingRef.current || isPlayingRef.current) {
+      return;
+    }
+
+    // Replay an independent copy of the completed recording.
+    const events = recordingQueueRef.current
+      .toArray()
+      .map((event) => ({ ...event }));
+
+    if (events.length === 0) {
+      return;
+    }
+
+    isPlayingRef.current = true;
+    setIsPlaying(true);
+    setPlaybackStatus("Playing...");
+
+    const controller = new AbortController();
+    replayControllerRef.current = controller;
+
+    try {
+      await playSequence(
+        events,
+        playbackSpeed,
+        {
+          noteOn: handleNoteOn,
+          noteOff: handleNoteOff,
+        },
+        controller.signal,
+      );
+
+      setPlaybackStatus("Playback completed");
+    } catch (error) {
+      if (error.name === "AbortError") {
+        setPlaybackStatus("Playback stopped");
+      } else {
+        console.error("Playback failed:", error);
+        setPlaybackStatus("Playback failed");
+      }
+    } finally {
+      if (replayControllerRef.current === controller) {
+        replayControllerRef.current = null;
+      }
+
+      isPlayingRef.current = false;
+      setIsPlaying(false);
+    }
+  }, [playbackSpeed, handleNoteOn, handleNoteOff]);
+
   const pressedNoteNames = PIANO_KEYS
     .filter((key) => pressed.has(key.midi))
     .map((key) => key.noteName);
@@ -227,9 +296,11 @@ export default function App() {
     <main className="app">
       <header className="page-header">
         <p className="eyebrow">REACT 19 · HOMEWORK 2</p>
+
         <h1>88-Key Piano</h1>
+
         <p className="subtitle">
-          Phase E — FIFO Recording
+          Phase F — Asynchronous FIFO Replay
         </p>
       </header>
 
@@ -254,14 +325,18 @@ export default function App() {
         <div className="section-heading">
           <div>
             <h2 id="piano-heading">Piano keyboard</h2>
-            <p>Hold the keys to play and record notes.</p>
+            <p>Hold keys to play chords and record notes.</p>
           </div>
 
           <span className="keyboard-count">A0 — C8</span>
         </div>
 
         <div className="piano-scroll">
-          <div className="piano-track" role="group" aria-label="88 piano keys">
+          <div
+            className="piano-track"
+            role="group"
+            aria-label="88 piano keys"
+          >
             {PIANO_KEYS.map((key) => (
               <PianoKey
                 key={key.midi}
@@ -284,13 +359,15 @@ export default function App() {
         </p>
       </section>
 
-      <section className="recording-section" aria-labelledby="recording-heading">
+      <section
+        className="recording-section"
+        aria-labelledby="recording-heading"
+      >
         <div className="section-heading">
           <div>
             <h2 id="recording-heading">Recording</h2>
             <p>
-              Delta is measured between note starts. The first delta is
-              measured from when recording begins.
+              Record notes in FIFO order, including overlapping notes.
             </p>
           </div>
         </div>
@@ -300,7 +377,7 @@ export default function App() {
             type="button"
             className="record-button"
             onClick={startRecording}
-            disabled={isRecording}
+            disabled={isRecording || isPlaying}
           >
             Record
           </button>
@@ -309,12 +386,12 @@ export default function App() {
             type="button"
             className="stop-recording-button"
             onClick={stopRecording}
-            disabled={!isRecording}
+            disabled={!isRecording || isPlaying}
           >
             Stop Recording
           </button>
 
-          <span className="recording-status" role="status" aria-live="polite">
+          <span className="recording-status" role="status">
             {isRecording ? "Recording..." : "Not recording"}
             {" · "}
             {recordingEvents.length} events
@@ -322,12 +399,76 @@ export default function App() {
         </div>
 
         <p className="recording-note">
-          Held notes are finalized when released or when Stop Recording is
-          clicked.
+          Held notes are finalized when released or when Stop Recording
+          is clicked.
         </p>
+      </section>
+
+      <section
+        className="playback-section"
+        aria-labelledby="playback-heading"
+      >
+        <div className="section-heading">
+          <div>
+            <h2 id="playback-heading">Sequence Playback</h2>
+            <p>Replay the same recording at different speeds.</p>
+          </div>
+        </div>
+
+        <div className="playback-controls">
+          <label htmlFor="playback-speed">
+            Playback speed
+          </label>
+
+          <select
+            id="playback-speed"
+            value={playbackSpeed}
+            onChange={(event) =>
+              setPlaybackSpeed(Number(event.target.value))
+            }
+            disabled={isPlaying || isRecording}
+          >
+            <option value={0.5}>0.5x — Slow</option>
+            <option value={1}>1.0x — Normal</option>
+            <option value={2}>2.0x — Fast</option>
+          </select>
+
+          <button
+            type="button"
+            className="play-button"
+            onClick={handlePlay}
+            disabled={
+              isRecording ||
+              isPlaying ||
+              recordingEvents.length === 0
+            }
+          >
+            {isPlaying ? "Playing..." : "Play"}
+          </button>
+
+          <span className="playback-status" role="status" aria-live="polite">
+            {playbackStatus}
+          </span>
+        </div>
+
+        <p className="recording-note">
+          Playing a sequence does not add events to the recording.
+          Record and Play cannot run simultaneously.
+        </p>
+      </section>
+
+      <section className="recording-section" aria-labelledby="events-heading">
+        <div className="section-heading">
+          <div>
+            <h2 id="events-heading">Recorded Events</h2>
+            <p>Current recording queue.</p>
+          </div>
+        </div>
 
         {recordingEvents.length === 0 ? (
-          <p className="empty-recording">No events recorded yet.</p>
+          <p className="empty-recording">
+            No events recorded yet.
+          </p>
         ) : (
           <div className="recording-table-scroll">
             <table className="recording-table">
@@ -340,6 +481,7 @@ export default function App() {
                   <th>Duration</th>
                 </tr>
               </thead>
+
               <tbody>
                 {recordingEvents.map((event, index) => (
                   <tr key={`${event.midi}-${index}`}>
