@@ -33,10 +33,11 @@ export const PianoKey = memo(function PianoKey({
     .join(" ");
 
   const positionStyle = isBlack
-    ? {
-        left: `${countWhiteKeysBefore(midi) * WHITE_KEY_WIDTH_PX}px`,
-      }
-    : undefined;
+  ? {
+      left: `${countWhiteKeysBefore(midi) * WHITE_KEY_WIDTH_PX}px`,
+      transform: "translateX(-50%)",
+    }
+  : undefined;
 
   function handlePointerDown(event) {
     if (event.pointerType === "mouse" && event.button !== 0) {

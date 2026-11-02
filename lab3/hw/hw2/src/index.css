@@ -494,3 +494,7 @@ h2 {
   outline: 3px solid #ff8999;
   outline-offset: 3px;
 }
+.piano-track[aria-disabled="true"] {
+  opacity: 0.7;
+  cursor: not-allowed;
+}

@@ -75,6 +75,8 @@ export default function App() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [playbackStatus, setPlaybackStatus] = useState("Ready");
 
+  const mountedRef = useRef(false);
+
   const synthRef = useRef(null);
 
   if (synthRef.current === null) {
@@ -87,7 +89,6 @@ export default function App() {
     recordingQueueRef.current = new FifoQueue();
   }
 
-  // MIDI -> { event, startedAt }
   const activeRecordingRef = useRef(new Map());
 
   const isRecordingRef = useRef(false);
@@ -96,7 +97,6 @@ export default function App() {
   const recordingStartRef = useRef(null);
   const lastNoteStartRef = useRef(null);
 
-  // Current replay's AbortController.
   const replayControllerRef = useRef(null);
 
   const handleNoteOn = useCallback((midi) => {
@@ -110,7 +110,6 @@ export default function App() {
     const stolenMidi = synth.noteOn(midi, key.freqHz);
     const startedAt = performance.now();
 
-    // Finalize a note removed by FIFO voice stealing.
     if (stolenMidi !== null && isRecordingRef.current) {
       finalizeRecordedNote(
         activeRecordingRef.current,
@@ -119,7 +118,6 @@ export default function App() {
       );
     }
 
-    // Replay events are not recorded because recording is disabled.
     if (isRecordingRef.current) {
       const previousStart =
         lastNoteStartRef.current ??
@@ -145,19 +143,23 @@ export default function App() {
 
       lastNoteStartRef.current = startedAt;
 
-      setRecordingEvents(recordingQueueRef.current.toArray());
+      if (mountedRef.current) {
+        setRecordingEvents(recordingQueueRef.current.toArray());
+      }
     }
 
-    setPressed((previous) => {
-      const next = new Set(previous);
+    if (mountedRef.current) {
+      setPressed((previous) => {
+        const next = new Set(previous);
 
-      if (stolenMidi !== null) {
-        next.delete(stolenMidi);
-      }
+        if (stolenMidi !== null) {
+          next.delete(stolenMidi);
+        }
 
-      next.add(midi);
-      return next;
-    });
+        next.add(midi);
+        return next;
+      });
+    }
   }, []);
 
   const handleNoteOff = useCallback((midi) => {
@@ -171,7 +173,13 @@ export default function App() {
         )
       : false;
 
+    // Audio release must happen even during unmount.
     synthRef.current?.noteOff(midi);
+
+    // Prevent React state updates after unmount.
+    if (!mountedRef.current) {
+      return;
+    }
 
     setPressed((previous) => {
       if (!previous.has(midi)) {
@@ -216,7 +224,6 @@ export default function App() {
 
     const stoppedAt = performance.now();
 
-    // Finalize every note still held.
     for (const midi of [...activeRecordingRef.current.keys()]) {
       finalizeRecordedNote(
         activeRecordingRef.current,
@@ -232,7 +239,6 @@ export default function App() {
     setRecordingEvents(recordingQueueRef.current.toArray());
   }, []);
 
-  // Start a new asynchronous replay.
   const handlePlay = useCallback(async () => {
     if (isRecordingRef.current || isPlayingRef.current) {
       return;
@@ -245,6 +251,10 @@ export default function App() {
     if (events.length === 0) {
       return;
     }
+
+    // Release any manually held notes before replay begins.
+    synthRef.current?.stopAll();
+    setPressed(new Set());
 
     const controller = new AbortController();
 
@@ -265,11 +275,17 @@ export default function App() {
         controller.signal,
       );
 
-      if (replayControllerRef.current === controller) {
+      if (
+        mountedRef.current &&
+        replayControllerRef.current === controller
+      ) {
         setPlaybackStatus("Playback completed");
       }
     } catch (error) {
-      if (replayControllerRef.current === controller) {
+      if (
+        mountedRef.current &&
+        replayControllerRef.current === controller
+      ) {
         if (error?.name === "AbortError") {
           setPlaybackStatus("Playback stopped");
         } else {
@@ -278,16 +294,17 @@ export default function App() {
         }
       }
     } finally {
-      // An older replay must not change a newer replay's state.
       if (replayControllerRef.current === controller) {
         replayControllerRef.current = null;
         isPlayingRef.current = false;
-        setIsPlaying(false);
+
+        if (mountedRef.current) {
+          setIsPlaying(false);
+        }
       }
     }
   }, [playbackSpeed, handleNoteOn, handleNoteOff]);
 
-  // Stop Sequence button.
   const handleStopSequence = useCallback(() => {
     const controller = replayControllerRef.current;
 
@@ -295,40 +312,35 @@ export default function App() {
       return;
     }
 
-    // Detach the controller before aborting.
-    // The old replay's finally block can no longer update UI state.
     replayControllerRef.current = null;
     isPlayingRef.current = false;
 
-    // Cancel pending sleeps and release scheduled notes.
     controller.abort();
 
-    // Release any remaining voices.
     synthRef.current?.stopAll();
 
-    // Clear all pressed key indicators.
     setPressed(new Set());
-
     setIsPlaying(false);
     setPlaybackStatus("Playback stopped");
   }, []);
 
-  // Cleanup on unmount, including React Strict Mode effect cleanup.
+  // Strict Mode-compatible lifecycle cleanup.
   useEffect(() => {
+    mountedRef.current = true;
+
     return () => {
+      mountedRef.current = false;
+
       const controller = replayControllerRef.current;
 
       replayControllerRef.current = null;
       isPlayingRef.current = false;
       isRecordingRef.current = false;
 
-      // Cancel replay timers.
       controller?.abort();
 
-      // Discard unfinished recording state.
       activeRecordingRef.current.clear();
 
-      // Stop and dispose audio resources.
       synthRef.current?.stopAll();
       synthRef.current?.dispose();
     };
@@ -344,11 +356,9 @@ export default function App() {
     <main className="app">
       <header className="page-header">
         <p className="eyebrow">REACT 19 · HOMEWORK 2</p>
-
         <h1>88-Key Piano</h1>
-
         <p className="subtitle">
-          Phase G — Cancellation and Resource Cleanup
+          Phase H — Verification and AI Failure Audit
         </p>
       </header>
 
@@ -373,7 +383,10 @@ export default function App() {
         <div className="section-heading">
           <div>
             <h2 id="piano-heading">Piano keyboard</h2>
-            <p>Hold keys to play chords and record notes.</p>
+            <p>
+              Hold keys to play chords and record notes.
+              Piano interaction is locked during replay.
+            </p>
           </div>
 
           <span className="keyboard-count">A0 — C8</span>
@@ -384,6 +397,8 @@ export default function App() {
             className="piano-track"
             role="group"
             aria-label="88 piano keys"
+            aria-disabled={isPlaying}
+            inert={isPlaying}
           >
             {PIANO_KEYS.map((key) => (
               <PianoKey
