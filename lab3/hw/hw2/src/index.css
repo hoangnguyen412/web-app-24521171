@@ -470,3 +470,27 @@ h2 {
     padding: 16px;
   }
 }
+.stop-sequence-button {
+  min-height: 40px;
+  padding: 9px 16px;
+  border: 1px solid #c84b5d;
+  border-radius: 8px;
+  color: #fff;
+  background: #8f2939;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.stop-sequence-button:hover:not(:disabled) {
+  background: #b6384b;
+}
+
+.stop-sequence-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.stop-sequence-button:focus-visible {
+  outline: 3px solid #ff8999;
+  outline-offset: 3px;
+}

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PIANO_KEYS } from "./data/pianoKeys.js";
 import { PianoKey } from "./components/PianoKey.jsx";
 import { PolyphonicSynth } from "./audio/PolyphonicSynth.js";
@@ -96,8 +96,7 @@ export default function App() {
   const recordingStartRef = useRef(null);
   const lastNoteStartRef = useRef(null);
 
-  // One controller per replay. Full Stop Sequence handling
-  // will be implemented in Phase G.
+  // Current replay's AbortController.
   const replayControllerRef = useRef(null);
 
   const handleNoteOn = useCallback((midi) => {
@@ -120,8 +119,7 @@ export default function App() {
       );
     }
 
-    // Only physical/user recording events enter the queue.
-    // Replay runs while this flag is false.
+    // Replay events are not recorded because recording is disabled.
     if (isRecordingRef.current) {
       const previousStart =
         lastNoteStartRef.current ??
@@ -196,9 +194,7 @@ export default function App() {
       return;
     }
 
-    const queue = recordingQueueRef.current;
-
-    queue.clear();
+    recordingQueueRef.current.clear();
     activeRecordingRef.current.clear();
 
     const now = performance.now();
@@ -220,7 +216,7 @@ export default function App() {
 
     const stoppedAt = performance.now();
 
-    // Finalize all notes still held.
+    // Finalize every note still held.
     for (const midi of [...activeRecordingRef.current.keys()]) {
       finalizeRecordedNote(
         activeRecordingRef.current,
@@ -236,12 +232,12 @@ export default function App() {
     setRecordingEvents(recordingQueueRef.current.toArray());
   }, []);
 
+  // Start a new asynchronous replay.
   const handlePlay = useCallback(async () => {
     if (isRecordingRef.current || isPlayingRef.current) {
       return;
     }
 
-    // Replay an independent copy of the completed recording.
     const events = recordingQueueRef.current
       .toArray()
       .map((event) => ({ ...event }));
@@ -250,12 +246,13 @@ export default function App() {
       return;
     }
 
+    const controller = new AbortController();
+
+    replayControllerRef.current = controller;
     isPlayingRef.current = true;
+
     setIsPlaying(true);
     setPlaybackStatus("Playing...");
-
-    const controller = new AbortController();
-    replayControllerRef.current = controller;
 
     try {
       await playSequence(
@@ -268,23 +265,74 @@ export default function App() {
         controller.signal,
       );
 
-      setPlaybackStatus("Playback completed");
+      if (replayControllerRef.current === controller) {
+        setPlaybackStatus("Playback completed");
+      }
     } catch (error) {
-      if (error.name === "AbortError") {
-        setPlaybackStatus("Playback stopped");
-      } else {
-        console.error("Playback failed:", error);
-        setPlaybackStatus("Playback failed");
+      if (replayControllerRef.current === controller) {
+        if (error?.name === "AbortError") {
+          setPlaybackStatus("Playback stopped");
+        } else {
+          console.error("Playback failed:", error);
+          setPlaybackStatus("Playback failed");
+        }
       }
     } finally {
+      // An older replay must not change a newer replay's state.
       if (replayControllerRef.current === controller) {
         replayControllerRef.current = null;
+        isPlayingRef.current = false;
+        setIsPlaying(false);
       }
-
-      isPlayingRef.current = false;
-      setIsPlaying(false);
     }
   }, [playbackSpeed, handleNoteOn, handleNoteOff]);
+
+  // Stop Sequence button.
+  const handleStopSequence = useCallback(() => {
+    const controller = replayControllerRef.current;
+
+    if (!controller) {
+      return;
+    }
+
+    // Detach the controller before aborting.
+    // The old replay's finally block can no longer update UI state.
+    replayControllerRef.current = null;
+    isPlayingRef.current = false;
+
+    // Cancel pending sleeps and release scheduled notes.
+    controller.abort();
+
+    // Release any remaining voices.
+    synthRef.current?.stopAll();
+
+    // Clear all pressed key indicators.
+    setPressed(new Set());
+
+    setIsPlaying(false);
+    setPlaybackStatus("Playback stopped");
+  }, []);
+
+  // Cleanup on unmount, including React Strict Mode effect cleanup.
+  useEffect(() => {
+    return () => {
+      const controller = replayControllerRef.current;
+
+      replayControllerRef.current = null;
+      isPlayingRef.current = false;
+      isRecordingRef.current = false;
+
+      // Cancel replay timers.
+      controller?.abort();
+
+      // Discard unfinished recording state.
+      activeRecordingRef.current.clear();
+
+      // Stop and dispose audio resources.
+      synthRef.current?.stopAll();
+      synthRef.current?.dispose();
+    };
+  }, []);
 
   const pressedNoteNames = PIANO_KEYS
     .filter((key) => pressed.has(key.midi))
@@ -300,7 +348,7 @@ export default function App() {
         <h1>88-Key Piano</h1>
 
         <p className="subtitle">
-          Phase F — Asynchronous FIFO Replay
+          Phase G — Cancellation and Resource Cleanup
         </p>
       </header>
 
@@ -366,9 +414,7 @@ export default function App() {
         <div className="section-heading">
           <div>
             <h2 id="recording-heading">Recording</h2>
-            <p>
-              Record notes in FIFO order, including overlapping notes.
-            </p>
+            <p>Record notes in FIFO order.</p>
           </div>
         </div>
 
@@ -397,11 +443,6 @@ export default function App() {
             {recordingEvents.length} events
           </span>
         </div>
-
-        <p className="recording-note">
-          Held notes are finalized when released or when Stop Recording
-          is clicked.
-        </p>
       </section>
 
       <section
@@ -411,7 +452,7 @@ export default function App() {
         <div className="section-heading">
           <div>
             <h2 id="playback-heading">Sequence Playback</h2>
-            <p>Replay the same recording at different speeds.</p>
+            <p>Replay the recording at different speeds.</p>
           </div>
         </div>
 
@@ -446,22 +487,38 @@ export default function App() {
             {isPlaying ? "Playing..." : "Play"}
           </button>
 
-          <span className="playback-status" role="status" aria-live="polite">
+          <button
+            type="button"
+            className="stop-sequence-button"
+            onClick={handleStopSequence}
+            disabled={!isPlaying}
+          >
+            Stop Sequence
+          </button>
+
+          <span
+            className="playback-status"
+            role="status"
+            aria-live="polite"
+          >
             {playbackStatus}
           </span>
         </div>
 
         <p className="recording-note">
-          Playing a sequence does not add events to the recording.
-          Record and Play cannot run simultaneously.
+          Stop Sequence cancels pending notes and releases active voices.
+          Recording and playback cannot run simultaneously.
         </p>
       </section>
 
-      <section className="recording-section" aria-labelledby="events-heading">
+      <section
+        className="recording-section"
+        aria-labelledby="events-heading"
+      >
         <div className="section-heading">
           <div>
             <h2 id="events-heading">Recorded Events</h2>
-            <p>Current recording queue.</p>
+            <p>Current FIFO recording queue.</p>
           </div>
         </div>
 

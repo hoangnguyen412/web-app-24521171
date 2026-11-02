@@ -7,7 +7,7 @@ function createAbortError() {
 export function sleep(ms, signal) {
   if (!Number.isFinite(ms) || ms < 0) {
     return Promise.reject(
-      new RangeError("Sleep duration must be a non-negative number."),
+      new RangeError("Sleep duration must be non-negative."),
     );
   }
 
@@ -16,6 +16,7 @@ export function sleep(ms, signal) {
   }
 
   return new Promise((resolve, reject) => {
+    let timerId;
     let settled = false;
 
     const cleanup = () => {
@@ -31,7 +32,7 @@ export function sleep(ms, signal) {
       reject(createAbortError());
     };
 
-    const timerId = setTimeout(() => {
+    timerId = setTimeout(() => {
       if (settled) return;
 
       settled = true;
@@ -39,9 +40,10 @@ export function sleep(ms, signal) {
       resolve();
     }, ms);
 
-    signal?.addEventListener("abort", handleAbort, { once: true });
+    signal?.addEventListener("abort", handleAbort, {
+      once: true,
+    });
 
-    // Handle an abort occurring immediately before listener registration.
     if (signal?.aborted) {
       handleAbort();
     }
@@ -68,14 +70,14 @@ export async function playSequence(events, speed, handlers, signal) {
     throw createAbortError();
   }
 
-  // Track voices and their scheduled release timers.
   const activeNotes = new Set();
-  const releaseTimers = new Map();
+  const releaseTimers = new Set();
 
+  // Release every active note and cancel all pending note-off timers.
   const releaseAll = () => {
-    for (const [timerId, release] of releaseTimers) {
-      clearTimeout(timerId);
-      release.resolve();
+    for (const task of releaseTimers) {
+      clearTimeout(task.timerId);
+      task.resolve();
     }
 
     releaseTimers.clear();
@@ -84,7 +86,7 @@ export async function playSequence(events, speed, handlers, signal) {
       try {
         handlers.noteOff(midi);
       } catch (error) {
-        console.error("Unable to release MIDI note:", midi, error);
+        console.error("Unable to release note:", midi, error);
       }
     }
 
@@ -95,7 +97,9 @@ export async function playSequence(events, speed, handlers, signal) {
     releaseAll();
   };
 
-  signal?.addEventListener("abort", handleAbort, { once: true });
+  signal?.addEventListener("abort", handleAbort, {
+    once: true,
+  });
 
   const releaseTasks = [];
   let completed = false;
@@ -114,44 +118,43 @@ export async function playSequence(events, speed, handlers, signal) {
         throw new TypeError("Invalid recorded event.");
       }
 
-      // Wait until this note's start time.
+      // Wait until the next note's start time.
       await sleep(event.deltaMs / speed, signal);
 
       if (signal?.aborted) {
         throw createAbortError();
       }
 
-      // Start the note without waiting for its duration.
+      // Start note without blocking the next event.
       handlers.noteOn(event.midi, event.freqHz);
       activeNotes.add(event.midi);
 
-      // Schedule its release independently.
-      // This allows other notes to start while this one is playing.
-      let timerId;
-
+      // Schedule this note's release independently.
       const releaseTask = new Promise((resolve) => {
-        const release = () => {
-          releaseTimers.delete(timerId);
-
-          if (activeNotes.delete(event.midi)) {
-            handlers.noteOff(event.midi);
-          }
-
-          resolve();
+        const task = {
+          timerId: null,
+          resolve,
         };
 
-        timerId = setTimeout(
-          release,
-          event.durationMs / speed,
-        );
+        task.timerId = setTimeout(() => {
+          releaseTimers.delete(task);
 
-        releaseTimers.set(timerId, { resolve });
+          try {
+            if (activeNotes.delete(event.midi)) {
+              handlers.noteOff(event.midi);
+            }
+          } finally {
+            resolve();
+          }
+        }, event.durationMs / speed);
+
+        releaseTimers.add(task);
       });
 
       releaseTasks.push(releaseTask);
     }
 
-    // Wait until all scheduled notes have finished.
+    // Wait for all currently playing notes to finish.
     await Promise.all(releaseTasks);
 
     if (signal?.aborted) {
@@ -162,7 +165,6 @@ export async function playSequence(events, speed, handlers, signal) {
   } finally {
     signal?.removeEventListener("abort", handleAbort);
 
-    // Ensure unfinished notes are released on errors or cancellation.
     if (!completed) {
       releaseAll();
     }
