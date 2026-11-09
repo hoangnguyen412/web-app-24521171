@@ -1,30 +1,25 @@
-
 import { useEffect, useState } from 'react';
-
-interface PubgAirdropTimerResult {
-  readonly remainingMs: number;
-  readonly isLive: boolean;
-}
 
 export function usePubgAirdropTimer(
   targetEpochMs: number,
   serverOffsetMs = 0,
-): PubgAirdropTimerResult {
-  const calcRemaining = (): number =>
-    Math.max(0, targetEpochMs - (Date.now() + serverOffsetMs));
-
-  const [remainingMs, setRemainingMs] = useState(calcRemaining);
+) {
+  const [remainingMs, setRemainingMs] = useState(() =>
+    Math.max(0, targetEpochMs - (Date.now() + serverOffsetMs)),
+  );
 
   useEffect(() => {
-    const syncClock = (): void => {
-      setRemainingMs(calcRemaining());
+    const syncClock = () => {
+      setRemainingMs(
+        Math.max(0, targetEpochMs - (Date.now() + serverOffsetMs)),
+      );
     };
 
     syncClock();
 
     const timerId = window.setInterval(syncClock, 200);
 
-    const onWake = (): void => {
+    const onWake = () => {
       if (document.visibilityState === 'visible') {
         syncClock();
       }

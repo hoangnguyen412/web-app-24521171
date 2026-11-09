@@ -1,45 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PubgCrateDrop } from '../types';
 import { ClaimError, claimCrate } from '../api/mockServer';
+import type { PubgCrateDrop } from '../types';
 
 interface UseOptimisticClaimResult {
-  readonly drops: PubgCrateDrop[];
-  readonly claimingDropIds: string[];
-  readonly claimStatus: string;
-  readonly claim: (dropId: string, canClaim: boolean) => Promise<void>;
+  drops: readonly PubgCrateDrop[];
+  claimingDropIds: readonly string[];
+  claimStatus: string;
+  claim: (dropId: string, canClaim: boolean) => Promise<void>;
 }
 
 export function useOptimisticClaim(
   initialDrops: readonly PubgCrateDrop[],
 ): UseOptimisticClaimResult {
-  const [drops, setDrops] = useState<PubgCrateDrop[]>(() =>
-    initialDrops.map((drop) => ({ ...drop })),
-  );
-
+  const [drops, setDrops] = useState<readonly PubgCrateDrop[]>(initialDrops);
   const [claimingDropIds, setClaimingDropIds] = useState<string[]>([]);
   const [claimStatus, setClaimStatus] = useState('');
 
-  // Khóa đồng bộ để ngăn double-click trước khi React cập nhật state.
-  const inFlightRef = useRef<Set<string>>(new Set());
-
-  // Lưu AbortController của các request đang chạy.
-  const controllersRef = useRef<Map<string, AbortController>>(new Map());
-
-  // Theo dõi component đã unmount hay chưa.
+  const inFlightRef = useRef(new Set<string>());
+  const controllersRef = useRef(new Map<string, AbortController>());
   const mountedRef = useRef(true);
 
   useEffect(() => {
     mountedRef.current = true;
 
+    const controllers = controllersRef.current;
+    const inFlight = inFlightRef.current;
+
     return () => {
       mountedRef.current = false;
 
-      controllersRef.current.forEach((controller) => {
+      controllers.forEach((controller) => {
         controller.abort();
       });
 
-      controllersRef.current.clear();
-      inFlightRef.current.clear();
+      controllers.clear();
+      inFlight.clear();
     };
   }, []);
 
@@ -49,9 +44,9 @@ export function useOptimisticClaim(
         return;
       }
 
-      const targetDrop = drops.find((drop) => drop.id === dropId);
+      const selectedDrop = drops.find((drop) => drop.id === dropId);
 
-      if (!targetDrop || targetDrop.remainingStock <= 0) {
+      if (!selectedDrop || selectedDrop.remainingStock <= 0) {
         return;
       }
 
@@ -61,55 +56,58 @@ export function useOptimisticClaim(
       inFlightRef.current.add(dropId);
       controllersRef.current.set(dropId, controller);
 
-      // Optimistic update: giảm stock ngay trên UI.
+      setClaimingDropIds((current) => [...current, dropId]);
+      setClaimStatus(`Claiming ${selectedDrop.title}...`);
+
+      // Optimistic update
       setDrops((currentDrops) =>
         currentDrops.map((drop) =>
           drop.id === dropId
-            ? { ...drop, remainingStock: drop.remainingStock - 1 }
+            ? {
+                ...drop,
+                remainingStock: drop.remainingStock - 1,
+              }
             : drop,
         ),
       );
 
-      setClaimingDropIds((currentIds) => [...currentIds, dropId]);
-      setClaimStatus(`Đang xử lý claim: ${targetDrop.title}...`);
-
       try {
         await claimCrate(dropId, claimId, controller.signal);
 
-        if (!mountedRef.current) {
-          return;
-        }
-
-        setClaimStatus(`Claim thành công: ${targetDrop.title}`);
-      } catch (error: unknown) {
         if (!mountedRef.current || controller.signal.aborted) {
           return;
         }
 
-        // Rollback: hoàn lại đúng 1 stock đã giảm trước đó.
+        setClaimStatus(`Successfully claimed ${selectedDrop.title}!`);
+      } catch (error) {
+        if (!mountedRef.current || controller.signal.aborted) {
+          return;
+        }
+
+        // Rollback optimistic update
         setDrops((currentDrops) =>
           currentDrops.map((drop) =>
             drop.id === dropId
-              ? { ...drop, remainingStock: drop.remainingStock + 1 }
+              ? {
+                  ...drop,
+                  remainingStock: drop.remainingStock + 1,
+                }
               : drop,
           ),
         );
 
         if (error instanceof ClaimError && error.status === 409) {
-          setClaimStatus(`${targetDrop.title}: Looted Out`);
+          setClaimStatus(`${selectedDrop.title}: Looted Out`);
         } else {
-          const message =
-            error instanceof Error ? error.message : 'Unknown error';
-
-          setClaimStatus(`Claim thất bại: ${message}`);
+          setClaimStatus(`${selectedDrop.title}: Claim failed.`);
         }
       } finally {
         inFlightRef.current.delete(dropId);
         controllersRef.current.delete(dropId);
 
         if (mountedRef.current) {
-          setClaimingDropIds((currentIds) =>
-            currentIds.filter((id) => id !== dropId),
+          setClaimingDropIds((current) =>
+            current.filter((id) => id !== dropId),
           );
         }
       }
