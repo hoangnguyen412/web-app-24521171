@@ -1,4 +1,5 @@
 import { DropCard } from './components/DropCard';
+import { Leaderboard } from './components/Leaderboard';
 import { drops as initialDrops } from './data/drops';
 import { useOptimisticClaim } from './hooks/useOptimisticClaim';
 import './App.css';
@@ -56,6 +57,8 @@ function App() {
           ))}
         </div>
       </section>
+
+      <Leaderboard />
 
       <footer className="arena__footer">
         KRAFTON × PUBG Vietnam Championship

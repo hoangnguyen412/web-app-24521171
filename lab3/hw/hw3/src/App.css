@@ -1,4 +1,3 @@
-
 #root {
   min-height: 100vh;
 }
@@ -69,6 +68,129 @@
   gap: 24px;
 }
 
+/* Leaderboard */
+
+.leaderboard {
+  margin-top: 72px;
+  padding: 28px;
+  border: 1px solid #263244;
+  border-radius: 14px;
+  background: #111c2d;
+}
+
+.leaderboard__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.leaderboard__heading h2 {
+  margin: 8px 0 0;
+  font-size: 26px;
+}
+
+.leaderboard__count {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.leaderboard__controls {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.leaderboard__field {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.leaderboard__field label {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.leaderboard__field input,
+.leaderboard__field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #334155;
+  border-radius: 7px;
+  outline: none;
+  background: #0b1422;
+  color: #f8fafc;
+  font: inherit;
+}
+
+.leaderboard__field input:focus,
+.leaderboard__field select:focus {
+  border-color: #ff9d00;
+  box-shadow: 0 0 0 2px rgb(255 157 0 / 15%);
+}
+
+.leaderboard__field input::placeholder {
+  color: #64748b;
+}
+
+.leaderboard__table-wrapper {
+  overflow-x: auto;
+}
+
+.leaderboard__table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.leaderboard__table th {
+  padding: 16px 14px;
+  border-bottom: 1px solid #334155;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.leaderboard__table td {
+  padding: 18px 14px;
+  border-bottom: 1px solid #263244;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.leaderboard__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.leaderboard__table tbody tr:hover {
+  background: rgb(255 255 255 / 3%);
+}
+
+.leaderboard__rank {
+  color: #ff9d00 !important;
+  font-weight: 900;
+}
+
+.leaderboard__squad {
+  color: #f8fafc !important;
+  font-weight: 800;
+}
+
+.leaderboard__empty {
+  padding: 28px 14px !important;
+  color: #94a3b8 !important;
+  text-align: center;
+}
+
 .arena__footer {
   display: flex;
   flex-direction: column;
@@ -90,6 +212,20 @@
   }
 
   .arena__section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .leaderboard {
+    margin-top: 48px;
+    padding: 18px;
+  }
+
+  .leaderboard__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .leaderboard__heading {
     align-items: flex-start;
     flex-direction: column;
   }
